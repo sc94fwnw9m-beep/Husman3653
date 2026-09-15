@@ -1,6 +1,12 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react'; 
 import { SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
+import { StatusBar } from 'expo-status-bar'; import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = 'https://ujmfvlktaxhefrqzkmdl.supabase.co';
+
+const supabaseKey = 'sb_publishable_zcu1n2OSXR7xlizKMHWHgw_IljNK7JS';
+
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 const sections = {
   'Frukost': [

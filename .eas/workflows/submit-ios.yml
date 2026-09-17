@@ -1,0 +1,8 @@
+name: EAS Submit - iOS
+
+jobs:
+  submit_ios:
+    type: submit
+    params:
+      platform: ios
+      profile: production

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   SafeAreaView,
@@ -18,7 +18,7 @@ const supabaseKey =
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-const weeklyLunch = {
+const DEFAULT_LUNCH = {
   Måndag: [
     'Piccata milanese med ris, tomatsås',
     'Hackad biff med stekt potatis, krämig paprikasås',
@@ -46,7 +46,7 @@ const weeklyLunch = {
   ],
 };
 
-const menu = {
+const MENU = {
   Pasta: [
     ['Penne Paradiso', 139],
     ['Con Pollo', 139],
@@ -90,13 +90,13 @@ const menu = {
   ],
 };
 
-const orderTypes = [
+const ORDER_TYPES = [
   ['Äta här', 139],
   ['Ta med', 129],
   ['Endast matlåda', 119],
 ];
 
-const categories = [
+const CATEGORIES = [
   'Lunch',
   'Pasta',
   'Hamburgare',
@@ -112,38 +112,34 @@ const categories = [
 export default function App() {
   const [section, setSection] = useState('Lunch');
   const [day, setDay] = useState('Måndag');
+  const [weeklyLunch, setWeeklyLunch] = useState(DEFAULT_LUNCH);
+
   const [orderType, setOrderType] = useState('Äta här');
   const [cart, setCart] = useState([]);
   const [showCart, setShowCart] = useState(false);
+
+  // Kundens beställning
+  const [orderDate, setOrderDate] = useState('');
+  const [orderTime, setOrderTime] = useState('');
   const [message, setMessage] = useState('');
 
+  // Boka bord
   const [bookingDate, setBookingDate] = useState('');
   const [bookingTime, setBookingTime] = useState('');
   const [bookingGuests, setBookingGuests] = useState('2');
+  const [bookingMessage, setBookingMessage] = useState('');
 
+  // Admin
   const [admin, setAdmin] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
-async function login() {
-  if (!adminEmail || !adminPassword) {
-    Alert.alert('Inloggning', 'Fyll i e-post och lösenord.');
-    return;
-  }
+  const [orders, setOrders] = useState([]);
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email: adminEmail.trim(),
-    password: adminPassword,
-  });
-
-  if (error) {
-    Alert.alert('Inloggning', 'Fel e-post eller lösenord.');
-    return;
-  }
-
-  setAdmin(true);
-  Alert.alert('Klart', 'Du är nu inloggad.');
-}
-
+  // Ändra lunchmeny
+  const [editDay, setEditDay] = useState('Måndag');
+  const [editDish1, setEditDish1] = useState('');
+  const [editDish2, setEditDish2] = useState('');
+  const [editDish3, setEditDish3] = useState('');
 
   const total = useMemo(
     () => cart.reduce((sum, item) => sum + item.price * item.qty, 0),
@@ -151,7 +147,13 @@ async function login() {
   );
 
   const lunchPrice =
-    orderTypes.find((item) => item[0] === orderType)?.[1] || 139;
+    ORDER_TYPES.find((item) => item[0] === orderType)?.[1] || 139;
+
+  useEffect(() => {
+    if (admin) {
+      loadOrders();
+    }
+  }, [admin]);
 
   function addToCart(name, price) {
     setCart((old) => {
@@ -193,15 +195,26 @@ async function login() {
 
   async function sendOrder() {
     if (cart.length === 0) {
-      Alert.alert('Kundkorgen är tom');
+      Alert.alert('Beställning', 'Kundkorgen är tom.');
+      return;
+    }
+
+    if (!orderDate.trim() || !orderTime.trim()) {
+      Alert.alert(
+        'Beställning',
+        'Fyll i datum och tid när maten önskas.'
+      );
       return;
     }
 
     const { error } = await supabase.from('orders').insert({
       items: cart,
-      message,
+      message: message.trim(),
       total,
       status: 'Ny',
+      order_date: orderDate.trim(),
+      order_time: orderTime.trim(),
+      order_type: orderType,
       created_at: new Date().toISOString(),
     });
 
@@ -220,20 +233,24 @@ async function login() {
 
     setCart([]);
     setMessage('');
+    setOrderDate('');
+    setOrderTime('');
     setShowCart(false);
   }
 
   async function bookTable() {
-    if (!bookingDate || !bookingTime) {
+    if (!bookingDate.trim() || !bookingTime.trim()) {
       Alert.alert('Boka bord', 'Fyll i datum och tid.');
       return;
     }
 
     const { error } = await supabase.from('bookings').insert({
-      date: bookingDate,
-      time: bookingTime,
+      date: bookingDate.trim(),
+      time: bookingTime.trim(),
       guests: Number(bookingGuests) || 2,
+      message: bookingMessage.trim(),
       status: 'Ny',
+      created_at: new Date().toISOString(),
     });
 
     if (error) {
@@ -248,11 +265,21 @@ async function login() {
       'Boka bord',
       'Din bokningsförfrågan är skickad.'
     );
+
+    setBookingDate('');
+    setBookingTime('');
+    setBookingGuests('2');
+    setBookingMessage('');
   }
 
   async function login() {
+    if (!adminEmail.trim() || !adminPassword) {
+      Alert.alert('Admin', 'Fyll i e-post och lösenord.');
+      return;
+    }
+
     const { error } = await supabase.auth.signInWithPassword({
-      email: adminEmail,
+      email: adminEmail.trim(),
       password: adminPassword,
     });
 
@@ -262,6 +289,84 @@ async function login() {
     }
 
     setAdmin(true);
+    setAdminPassword('');
+  }
+
+  async function logout() {
+    await supabase.auth.signOut();
+    setAdmin(false);
+    setOrders([]);
+  }
+
+  async function loadOrders() {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      Alert.alert(
+        'Beställningar',
+        'Kunde inte hämta beställningar.'
+      );
+      return;
+    }
+
+    setOrders(data || []);
+  }
+
+  async function foodReady(order) {
+    const { error } = await supabase
+      .from('orders')
+      .update({ status: 'Maten färdig' })
+      .eq('id', order.id);
+
+    if (error) {
+      Alert.alert(
+        'Maten färdig',
+        'Statusen kunde inte uppdateras.'
+      );
+      return;
+    }
+
+    Alert.alert(
+      'Klart',
+      'Beställningen är markerad som Maten färdig.'
+    );
+
+    loadOrders();
+  }
+
+  function openDayForEditing(selectedDay) {
+    const dishes = weeklyLunch[selectedDay] || [];
+
+    setEditDay(selectedDay);
+    setEditDish1(dishes[0] || '');
+    setEditDish2(dishes[1] || '');
+    setEditDish3(dishes[2] || '');
+  }
+
+  function saveMenuChanges() {
+    if (!editDish1.trim()) {
+      Alert.alert('Meny', 'Maträtt 1 får inte vara tom.');
+      return;
+    }
+
+    const newDishes = [
+      editDish1.trim(),
+      editDish2.trim(),
+      editDish3.trim(),
+    ].filter(Boolean);
+
+    setWeeklyLunch((old) => ({
+      ...old,
+      [editDay]: newDishes,
+    }));
+
+    Alert.alert(
+      'Meny sparad',
+      `${editDay} är uppdaterad.`
+    );
   }
 
   if (showCart) {
@@ -274,49 +379,69 @@ async function login() {
 
           <Text style={styles.heading}>Din beställning</Text>
 
-          {cart.length === 0 && (
+          {cart.length === 0 ? (
             <Text style={styles.empty}>
               Kundkorgen är tom.
             </Text>
+          ) : (
+            cart.map((item) => (
+              <View key={item.id} style={styles.card}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.item}>{item.name}</Text>
+
+                  <Text style={styles.muted}>
+                    {item.price} kr × {item.qty}
+                  </Text>
+                </View>
+
+                <View style={styles.qty}>
+                  <TouchableOpacity
+                    style={styles.small}
+                    onPress={() => changeQty(item.id, -1)}
+                  >
+                    <Text style={styles.smallText}>−</Text>
+                  </TouchableOpacity>
+
+                  <Text style={styles.qtyText}>
+                    {item.qty}
+                  </Text>
+
+                  <TouchableOpacity
+                    style={styles.small}
+                    onPress={() => changeQty(item.id, 1)}
+                  >
+                    <Text style={styles.smallText}>+</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))
           )}
-
-          {cart.map((item) => (
-            <View key={item.id} style={styles.card}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.item}>
-                  {item.name}
-                </Text>
-
-                <Text style={styles.muted}>
-                  {item.price} kr × {item.qty}
-                </Text>
-              </View>
-
-              <View style={styles.qty}>
-                <TouchableOpacity
-                  style={styles.small}
-                  onPress={() => changeQty(item.id, -1)}
-                >
-                  <Text style={styles.smallText}>−</Text>
-                </TouchableOpacity>
-
-                <Text style={styles.qtyText}>
-                  {item.qty}
-                </Text>
-
-                <TouchableOpacity
-                  style={styles.small}
-                  onPress={() => changeQty(item.id, 1)}
-                >
-                  <Text style={styles.smallText}>+</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
 
           <Text style={styles.total}>
             Totalt: {total} kr
           </Text>
+
+          <Text style={styles.label}>
+            Datum 📅
+          </Text>
+
+          <TextInput
+            style={styles.field}
+            value={orderDate}
+            onChangeText={setOrderDate}
+            placeholder="T.ex. 2026-09-21"
+          />
+
+          <Text style={styles.label}>
+            Tid 🕐
+          </Text>
+
+          <TextInput
+            style={styles.field}
+            value={orderTime}
+            onChangeText={setOrderTime}
+            placeholder="T.ex. 12:30"
+          />
 
           <Text style={styles.label}>
             Meddelande till restaurangen
@@ -332,8 +457,7 @@ async function login() {
 
           <View style={styles.info}>
             <Text style={styles.infoText}>
-              Betalning sker på restaurangen.
-              Ingen kort- eller Swishbetalning i appen.
+              Ingen betalning i appen. Kunden betalar på restaurangen.
             </Text>
           </View>
 
@@ -370,7 +494,7 @@ async function login() {
           showsHorizontalScrollIndicator={false}
           style={styles.categoryScroll}
         >
-          {categories.map((category) => (
+          {CATEGORIES.map((category) => (
             <TouchableOpacity
               key={category}
               onPress={() => setSection(category)}
@@ -382,8 +506,7 @@ async function login() {
               <Text
                 style={[
                   styles.tabText,
-                  section === category &&
-                    styles.tabTextActive,
+                  section === category && styles.tabTextActive,
                 ]}
               >
                 {category}
@@ -411,8 +534,7 @@ async function login() {
                   <Text
                     style={[
                       styles.dayText,
-                      day === item &&
-                        styles.dayTextActive,
+                      day === item && styles.dayTextActive,
                     ]}
                   >
                     {item}
@@ -422,21 +544,19 @@ async function login() {
             </View>
 
             <View style={styles.types}>
-              {orderTypes.map(([name, price]) => (
+              {ORDER_TYPES.map(([name, price]) => (
                 <TouchableOpacity
                   key={name}
                   onPress={() => setOrderType(name)}
                   style={[
                     styles.type,
-                    orderType === name &&
-                      styles.typeActive,
+                    orderType === name && styles.typeActive,
                   ]}
                 >
                   <Text
                     style={[
                       styles.typeText,
-                      orderType === name &&
-                        styles.typeTextActive,
+                      orderType === name && styles.typeTextActive,
                     ]}
                   >
                     {name}
@@ -449,32 +569,28 @@ async function login() {
 
             {weeklyLunch[day].map((name, index) => (
               <Food
-                key={name}
+                key={`${day}-${name}`}
                 number={index + 1}
                 name={name}
                 price={lunchPrice}
-                onAdd={() =>
-                  addToCart(name, lunchPrice)
-                }
+                onAdd={() => addToCart(name, lunchPrice)}
               />
             ))}
           </>
         )}
 
-        {menu[section] && (
+        {MENU[section] && (
           <>
             <Text style={styles.heading}>
               {section}
             </Text>
 
-            {menu[section].map(([name, price]) => (
+            {MENU[section].map(([name, price]) => (
               <Food
                 key={name}
                 name={name}
                 price={price}
-                onAdd={() =>
-                  addToCart(name, price)
-                }
+                onAdd={() => addToCart(name, price)}
               />
             ))}
           </>
@@ -508,6 +624,14 @@ async function login() {
               placeholder="Antal personer"
             />
 
+            <TextInput
+              style={styles.messageInput}
+              multiline
+              value={bookingMessage}
+              onChangeText={setBookingMessage}
+              placeholder="Meddelande till restaurangen..."
+            />
+
             <AppButton
               title="Skicka bokning"
               onPress={bookTable}
@@ -528,27 +652,7 @@ async function login() {
             Restaurang / Admin
           </Text>
 
-          {admin ? (
-            <>
-              <Text style={styles.success}>
-                ✓ Inloggad
-              </Text>
-
-              <Text style={styles.muted}>
-                Här kan restaurangen hantera meny
-                och inkommande beställningar.
-              </Text>
-
-              <AppButton
-                title="Logga ut"
-                outline
-                onPress={() => {
-                  supabase.auth.signOut();
-                  setAdmin(false);
-                }}
-              />
-            </>
-          ) : (
+          {!admin ? (
             <>
               <TextInput
                 style={styles.field}
@@ -573,6 +677,152 @@ async function login() {
                 onPress={login}
               />
             </>
+          ) : (
+            <>
+              <Text style={styles.success}>
+                ✓ Inloggad som admin
+              </Text>
+
+              <AppButton
+                title="Uppdatera beställningar"
+                onPress={loadOrders}
+              />
+
+              <Text style={styles.adminHeading}>
+                Inkommande beställningar
+              </Text>
+
+              {orders.length === 0 && (
+                <Text style={styles.muted}>
+                  Inga beställningar att visa.
+                </Text>
+              )}
+
+              {orders.map((order) => (
+                <View
+                  key={order.id}
+                  style={styles.orderCard}
+                >
+                  <Text style={styles.orderTitle}>
+                    Beställning #{order.id}
+                  </Text>
+
+                  <Text style={styles.muted}>
+                    Status: {order.status || 'Ny'}
+                  </Text>
+
+                  {!!order.order_date && (
+                    <Text>
+                      Datum: {order.order_date}
+                    </Text>
+                  )}
+
+                  {!!order.order_time && (
+                    <Text>
+                      Tid: {order.order_time}
+                    </Text>
+                  )}
+
+                  {!!order.order_type && (
+                    <Text>
+                      Typ: {order.order_type}
+                    </Text>
+                  )}
+
+                  {Array.isArray(order.items) &&
+                    order.items.map((item, index) => (
+                      <Text
+                        key={`${order.id}-${index}`}
+                      >
+                        • {item.qty} × {item.name}
+                      </Text>
+                    ))}
+
+                  {!!order.message && (
+                    <Text style={styles.orderMessage}>
+                      Meddelande: {order.message}
+                    </Text>
+                  )}
+
+                  <Text style={styles.orderTotal}>
+                    Totalt: {order.total || 0} kr
+                  </Text>
+
+                  {order.status !== 'Maten färdig' && (
+                    <AppButton
+                      title="Maten färdig"
+                      onPress={() => foodReady(order)}
+                    />
+                  )}
+                </View>
+              ))}
+
+              <Text style={styles.adminHeading}>
+                Ändra veckomeny
+              </Text>
+
+              <View style={styles.days}>
+                {Object.keys(weeklyLunch).map((item) => (
+                  <TouchableOpacity
+                    key={`edit-${item}`}
+                    onPress={() =>
+                      openDayForEditing(item)
+                    }
+                    style={[
+                      styles.day,
+                      editDay === item &&
+                        styles.dayActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.dayText,
+                        editDay === item &&
+                          styles.dayTextActive,
+                      ]}
+                    >
+                      {item}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.label}>
+                {editDay}
+              </Text>
+
+              <TextInput
+                style={styles.field}
+                value={editDish1}
+                onChangeText={setEditDish1}
+                placeholder="Maträtt 1"
+              />
+
+              <TextInput
+                style={styles.field}
+                value={editDish2}
+                onChangeText={setEditDish2}
+                placeholder="Maträtt 2"
+              />
+
+              <TextInput
+                style={styles.field}
+                value={editDish3}
+                onChangeText={setEditDish3}
+                placeholder="Maträtt 3"
+              />
+
+              <AppButton
+                title="Spara meny"
+                onPress={saveMenuChanges}
+              />
+
+              <AppButton
+                title="Logga ut"
+                outline
+                onPress={logout}
+              />
+            </>
           )}
         </View>
       </ScrollView>
@@ -584,10 +834,6 @@ function Header() {
   return (
     <View style={styles.header}>
       <Text style={styles.brand}>
-        HUSMAN3653
-      </Text>
-
-      <Text style={styles.subtitle}>
         Husman Lunchrestaurang
       </Text>
 
@@ -598,12 +844,7 @@ function Header() {
   );
 }
 
-function Food({
-  name,
-  price,
-  onAdd,
-  number,
-}) {
+function Food({ name, price, onAdd, number }) {
   return (
     <View style={styles.card}>
       <View style={{ flex: 1 }}>
@@ -629,11 +870,7 @@ function Food({
   );
 }
 
-function AppButton({
-  title,
-  onPress,
-  outline,
-}) {
+function AppButton({ title, onPress, outline }) {
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -664,7 +901,7 @@ const styles = StyleSheet.create({
 
   content: {
     padding: 16,
-    paddingBottom: 50,
+    paddingBottom: 60,
   },
 
   header: {
@@ -674,23 +911,16 @@ const styles = StyleSheet.create({
   },
 
   brand: {
-    fontSize: 31,
+    fontSize: 27,
     fontWeight: '900',
     color: BLUE,
-    letterSpacing: 1,
-  },
-
-  subtitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#173b60',
-    marginTop: 3,
+    textAlign: 'center',
   },
 
   open: {
     fontSize: 13,
     color: '#64788e',
-    marginTop: 5,
+    marginTop: 6,
   },
 
   info: {
@@ -904,7 +1134,7 @@ const styles = StyleSheet.create({
   },
 
   messageInput: {
-    minHeight: 100,
+    minHeight: 90,
     textAlignVertical: 'top',
     backgroundColor: '#ffffff',
     borderWidth: 1,
@@ -941,9 +1171,17 @@ const styles = StyleSheet.create({
   },
 
   adminTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#102b49',
+    marginBottom: 10,
+  },
+
+  adminHeading: {
     fontSize: 18,
     fontWeight: '900',
     color: '#102b49',
+    marginTop: 22,
     marginBottom: 10,
   },
 
@@ -951,5 +1189,34 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#167348',
     marginBottom: 8,
+  },
+
+  orderCard: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#d5e4f2',
+    borderRadius: 14,
+    padding: 13,
+    marginBottom: 12,
+  },
+
+  orderTitle: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#102b49',
+    marginBottom: 5,
+  },
+
+  orderMessage: {
+    marginTop: 8,
+    fontWeight: '700',
+    color: '#315574',
+  },
+
+    orderTotal: {
+    marginTop: 8,
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#102b49',
   },
 });

@@ -124,6 +124,26 @@ export default function App() {
   const [admin, setAdmin] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
+async function login() {
+  if (!adminEmail || !adminPassword) {
+    Alert.alert('Inloggning', 'Fyll i e-post och lösenord.');
+    return;
+  }
+
+  const { error } = await supabase.auth.signInWithPassword({
+    email: adminEmail.trim(),
+    password: adminPassword,
+  });
+
+  if (error) {
+    Alert.alert('Inloggning', 'Fel e-post eller lösenord.');
+    return;
+  }
+
+  setAdmin(true);
+  Alert.alert('Klart', 'Du är nu inloggad.');
+}
+
 
   const total = useMemo(
     () => cart.reduce((sum, item) => sum + item.price * item.qty, 0),

@@ -1,8 +1,15 @@
-name: EAS Submit - iOS
+name: EAS Build and Submit - iOS
 
 jobs:
+  build_ios:
+    type: build
+    params:
+      platform: ios
+      profile: production
+
   submit_ios:
+    needs: [build_ios]
     type: submit
     params:
-      build_id: "038b6384-8227-48e4-9ee3-967f4845e793"
+      build_id: ${{ needs.build_ios.outputs.build_id }}
       profile: production

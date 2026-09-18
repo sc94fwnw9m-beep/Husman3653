@@ -14,7 +14,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = 'https://ujmfvlktaxhefrqzkmdl.supabase.co';
 const supabaseKey =
-  'sb_publishable_zcu1n2OSXR7xlizKMHWHgw_IljNK7JS';
+  'sb_publishable_zcu1n20SXR7xlizKMHWHgw_I1jNK7JS';
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -54,28 +54,34 @@ const MENU = {
     ['Delizie', 139],
     ['Cannelloni', 139],
   ],
+
   Hamburgare: [
     ['Hemlagad högrevsburgare', 139],
     ['Chili Cheese Burger', 139],
     ['Texas BBQ Burger', 139],
   ],
+
   Pizza: [
     ['Kycklingpizza', 139],
     ['Calzone', 139],
   ],
+
   Kebab: [
     ['Kebabtallrik', 139],
     ['Kebabrulle', 139],
   ],
+
   Sallader: [
     ['Kycklingsallad', 139],
     ['Tonfisksallad', 139],
     ['Caesarsallad', 139],
   ],
+
   'Veganska maträtter': [
     ['Vegoburgare', 139],
     ['Vegoschnitzel', 139],
   ],
+
   Frukost: [
     ['Kokt ägg', 10],
     ['Fralla med ost', 25],
@@ -83,6 +89,7 @@ const MENU = {
     ['Fralla, kaffe och kokt ägg', 49],
     ['Kaffe', 25],
   ],
+
   'Frysta matlådor': [
     ['1 matlåda', 65],
     ['5 matlådor', 290],
@@ -112,42 +119,80 @@ const CATEGORIES = [
 export default function App() {
   const [section, setSection] = useState('Lunch');
   const [day, setDay] = useState('Måndag');
-  const [weeklyLunch, setWeeklyLunch] = useState(DEFAULT_LUNCH);
 
-  const [orderType, setOrderType] = useState('Äta här');
+  const [weeklyLunch, setWeeklyLunch] =
+    useState(DEFAULT_LUNCH);
+
+  const [orderType, setOrderType] =
+    useState('Äta här');
+
   const [cart, setCart] = useState([]);
-  const [showCart, setShowCart] = useState(false);
+  const [showCart, setShowCart] =
+    useState(false);
 
   // Kundens beställning
-  const [orderDate, setOrderDate] = useState('');
-  const [orderTime, setOrderTime] = useState('');
-  const [message, setMessage] = useState('');
+  const [orderDate, setOrderDate] =
+    useState('');
+
+  const [orderTime, setOrderTime] =
+    useState('');
+
+  const [message, setMessage] =
+    useState('');
 
   // Boka bord
-  const [bookingDate, setBookingDate] = useState('');
-  const [bookingTime, setBookingTime] = useState('');
-  const [bookingGuests, setBookingGuests] = useState('2');
-  const [bookingMessage, setBookingMessage] = useState('');
+  const [bookingDate, setBookingDate] =
+    useState('');
+
+  const [bookingTime, setBookingTime] =
+    useState('');
+
+  const [bookingGuests, setBookingGuests] =
+    useState('2');
+
+  const [bookingMessage, setBookingMessage] =
+    useState('');
 
   // Admin
-  const [admin, setAdmin] = useState(false);
-  const [adminEmail, setAdminEmail] = useState('');
-  const [adminPassword, setAdminPassword] = useState('');
-  const [orders, setOrders] = useState([]);
+  const [admin, setAdmin] =
+    useState(false);
+
+  const [adminEmail, setAdminEmail] =
+    useState('');
+
+  const [adminPassword, setAdminPassword] =
+    useState('');
+
+  const [orders, setOrders] =
+    useState([]);
 
   // Ändra lunchmeny
-  const [editDay, setEditDay] = useState('Måndag');
-  const [editDish1, setEditDish1] = useState('');
-  const [editDish2, setEditDish2] = useState('');
-  const [editDish3, setEditDish3] = useState('');
+  const [editDay, setEditDay] =
+    useState('Måndag');
+
+  const [editDish1, setEditDish1] =
+    useState('');
+
+  const [editDish2, setEditDish2] =
+    useState('');
+
+  const [editDish3, setEditDish3] =
+    useState('');
 
   const total = useMemo(
-    () => cart.reduce((sum, item) => sum + item.price * item.qty, 0),
+    () =>
+      cart.reduce(
+        (sum, item) =>
+          sum + item.price * item.qty,
+        0
+      ),
     [cart]
   );
 
   const lunchPrice =
-    ORDER_TYPES.find((item) => item[0] === orderType)?.[1] || 139;
+    ORDER_TYPES.find(
+      (item) => item[0] === orderType
+    )?.[1] || 139;
 
   useEffect(() => {
     if (admin) {
@@ -158,13 +203,18 @@ export default function App() {
   function addToCart(name, price) {
     setCart((old) => {
       const found = old.find(
-        (item) => item.name === name && item.price === price
+        (item) =>
+          item.name === name &&
+          item.price === price
       );
 
       if (found) {
         return old.map((item) =>
           item.id === found.id
-            ? { ...item, qty: item.qty + 1 }
+            ? {
+                ...item,
+                qty: item.qty + 1,
+              }
             : item
         );
       }
@@ -186,7 +236,10 @@ export default function App() {
       old
         .map((item) =>
           item.id === id
-            ? { ...item, qty: item.qty + amount }
+            ? {
+                ...item,
+                qty: item.qty + amount,
+              }
             : item
         )
         .filter((item) => item.qty > 0)
@@ -195,11 +248,17 @@ export default function App() {
 
   async function sendOrder() {
     if (cart.length === 0) {
-      Alert.alert('Beställning', 'Kundkorgen är tom.');
+      Alert.alert(
+        'Beställning',
+        'Kundkorgen är tom.'
+      );
       return;
     }
 
-    if (!orderDate.trim() || !orderTime.trim()) {
+    if (
+      !orderDate.trim() ||
+      !orderTime.trim()
+    ) {
       Alert.alert(
         'Beställning',
         'Fyll i datum och tid när maten önskas.'
@@ -207,22 +266,30 @@ export default function App() {
       return;
     }
 
-    const { error } = await supabase.from('orders').insert({
-      items: cart,
-      message: message.trim(),
-      total,
-      status: 'Ny',
-      order_date: orderDate.trim(),
-      order_time: orderTime.trim(),
-      order_type: orderType,
-      created_at: new Date().toISOString(),
-    });
+    const { error } = await supabase
+      .from('orders')
+      .insert({
+        items: cart,
+        message: message.trim(),
+        total: total,
+        status: 'Ny',
+
+        // Dessa namn matchar Supabase
+        pickup_date: orderDate.trim(),
+        pickup_time: orderTime.trim(),
+
+        order_type: orderType,
+        created_at: new Date().toISOString(),
+      });
 
     if (error) {
+      console.log(error);
+
       Alert.alert(
         'Beställning',
         'Beställningen kunde inte skickas just nu.'
       );
+
       return;
     }
 
@@ -239,25 +306,37 @@ export default function App() {
   }
 
   async function bookTable() {
-    if (!bookingDate.trim() || !bookingTime.trim()) {
-      Alert.alert('Boka bord', 'Fyll i datum och tid.');
+    if (
+      !bookingDate.trim() ||
+      !bookingTime.trim()
+    ) {
+      Alert.alert(
+        'Boka bord',
+        'Fyll i datum och tid.'
+      );
       return;
     }
 
-    const { error } = await supabase.from('bookings').insert({
-      date: bookingDate.trim(),
-      time: bookingTime.trim(),
-      guests: Number(bookingGuests) || 2,
-      message: bookingMessage.trim(),
-      status: 'Ny',
-      created_at: new Date().toISOString(),
-    });
+    const { error } = await supabase
+      .from('bookings')
+      .insert({
+        booking_date: bookingDate.trim(),
+        booking_time: bookingTime.trim(),
+        guests:
+          Number(bookingGuests) || 2,
+        message:
+          bookingMessage.trim(),
+        status: 'Ny',
+      });
 
     if (error) {
+      console.log(error);
+
       Alert.alert(
         'Boka bord',
         'Bokningen kunde inte skickas just nu.'
       );
+
       return;
     }
 
@@ -273,18 +352,30 @@ export default function App() {
   }
 
   async function login() {
-    if (!adminEmail.trim() || !adminPassword) {
-      Alert.alert('Admin', 'Fyll i e-post och lösenord.');
+    if (
+      !adminEmail.trim() ||
+      !adminPassword
+    ) {
+      Alert.alert(
+        'Admin',
+        'Fyll i e-post och lösenord.'
+      );
+
       return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email: adminEmail.trim(),
-      password: adminPassword,
-    });
+    const { error } =
+      await supabase.auth.signInWithPassword({
+        email: adminEmail.trim(),
+        password: adminPassword,
+      });
 
     if (error) {
-      Alert.alert('Admin', 'Fel e-post eller lösenord.');
+      Alert.alert(
+        'Admin',
+        'Fel e-post eller lösenord.'
+      );
+
       return;
     }
 
@@ -294,21 +385,29 @@ export default function App() {
 
   async function logout() {
     await supabase.auth.signOut();
+
     setAdmin(false);
     setOrders([]);
   }
 
   async function loadOrders() {
-    const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const { data, error } =
+      await supabase
+        .from('orders')
+        .select('*')
+        .order(
+          'created_at',
+          { ascending: false }
+        );
 
     if (error) {
+      console.log(error);
+
       Alert.alert(
         'Beställningar',
         'Kunde inte hämta beställningar.'
       );
+
       return;
     }
 
@@ -316,16 +415,20 @@ export default function App() {
   }
 
   async function foodReady(order) {
-    const { error } = await supabase
-      .from('orders')
-      .update({ status: 'Maten färdig' })
-      .eq('id', order.id);
+    const { error } =
+      await supabase
+        .from('orders')
+        .update({
+          status: 'Maten färdig',
+        })
+        .eq('id', order.id);
 
     if (error) {
       Alert.alert(
         'Maten färdig',
         'Statusen kunde inte uppdateras.'
       );
+
       return;
     }
 
@@ -338,7 +441,8 @@ export default function App() {
   }
 
   function openDayForEditing(selectedDay) {
-    const dishes = weeklyLunch[selectedDay] || [];
+    const dishes =
+      weeklyLunch[selectedDay] || [];
 
     setEditDay(selectedDay);
     setEditDish1(dishes[0] || '');
@@ -348,7 +452,11 @@ export default function App() {
 
   function saveMenuChanges() {
     if (!editDish1.trim()) {
-      Alert.alert('Meny', 'Maträtt 1 får inte vara tom.');
+      Alert.alert(
+        'Meny',
+        'Maträtt 1 får inte vara tom.'
+      );
+
       return;
     }
 
@@ -374,10 +482,16 @@ export default function App() {
       <SafeAreaView style={styles.page}>
         <StatusBar style="dark" />
 
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView
+          contentContainerStyle={
+            styles.content
+          }
+        >
           <Header />
 
-          <Text style={styles.heading}>Din beställning</Text>
+          <Text style={styles.heading}>
+            Din beställning
+          </Text>
 
           {cart.length === 0 ? (
             <Text style={styles.empty}>
@@ -385,32 +499,62 @@ export default function App() {
             </Text>
           ) : (
             cart.map((item) => (
-              <View key={item.id} style={styles.card}>
+              <View
+                key={item.id}
+                style={styles.card}
+              >
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.item}>{item.name}</Text>
+                  <Text style={styles.item}>
+                    {item.name}
+                  </Text>
 
                   <Text style={styles.muted}>
-                    {item.price} kr × {item.qty}
+                    {item.price} kr ×{' '}
+                    {item.qty}
                   </Text>
                 </View>
 
                 <View style={styles.qty}>
                   <TouchableOpacity
                     style={styles.small}
-                    onPress={() => changeQty(item.id, -1)}
+                    onPress={() =>
+                      changeQty(
+                        item.id,
+                        -1
+                      )
+                    }
                   >
-                    <Text style={styles.smallText}>−</Text>
+                    <Text
+                      style={
+                        styles.smallText
+                      }
+                    >
+                      −
+                    </Text>
                   </TouchableOpacity>
 
-                  <Text style={styles.qtyText}>
+                  <Text
+                    style={styles.qtyText}
+                  >
                     {item.qty}
                   </Text>
 
                   <TouchableOpacity
                     style={styles.small}
-                    onPress={() => changeQty(item.id, 1)}
+                    onPress={() =>
+                      changeQty(
+                        item.id,
+                        1
+                      )
+                    }
                   >
-                    <Text style={styles.smallText}>+</Text>
+                    <Text
+                      style={
+                        styles.smallText
+                      }
+                    >
+                      +
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -457,7 +601,9 @@ export default function App() {
 
           <View style={styles.info}>
             <Text style={styles.infoText}>
-              Ingen betalning i appen. Kunden betalar på restaurangen.
+              Ingen betalning i appen.
+              Kunden betalar på
+              restaurangen.
             </Text>
           </View>
 
@@ -469,7 +615,9 @@ export default function App() {
           <AppButton
             title="Tillbaka till menyn"
             outline
-            onPress={() => setShowCart(false)}
+            onPress={() =>
+              setShowCart(false)
+            }
           />
         </ScrollView>
       </SafeAreaView>
@@ -480,39 +628,52 @@ export default function App() {
     <SafeAreaView style={styles.page}>
       <StatusBar style="dark" />
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={
+          styles.content
+        }
+      >
         <Header />
 
         <View style={styles.info}>
           <Text style={styles.infoText}>
-            Beställ i appen • Betala på restaurangen
+            Beställ i appen • Betala på
+            restaurangen
           </Text>
         </View>
 
         <ScrollView
           horizontal
-          showsHorizontalScrollIndicator={false}
+          showsHorizontalScrollIndicator={
+            false
+          }
           style={styles.categoryScroll}
         >
-          {CATEGORIES.map((category) => (
-            <TouchableOpacity
-              key={category}
-              onPress={() => setSection(category)}
-              style={[
-                styles.tab,
-                section === category && styles.tabActive,
-              ]}
-            >
-              <Text
+          {CATEGORIES.map(
+            (category) => (
+              <TouchableOpacity
+                key={category}
+                onPress={() =>
+                  setSection(category)
+                }
                 style={[
-                  styles.tabText,
-                  section === category && styles.tabTextActive,
+                  styles.tab,
+                  section === category &&
+                    styles.tabActive,
                 ]}
               >
-                {category}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text
+                  style={[
+                    styles.tabText,
+                    section === category &&
+                      styles.tabTextActive,
+                  ]}
+                >
+                  {category}
+                </Text>
+              </TouchableOpacity>
+            )
+          )}
         </ScrollView>
 
         {section === 'Lunch' && (
@@ -522,19 +683,25 @@ export default function App() {
             </Text>
 
             <View style={styles.days}>
-              {Object.keys(weeklyLunch).map((item) => (
+              {Object.keys(
+                weeklyLunch
+              ).map((item) => (
                 <TouchableOpacity
                   key={item}
-                  onPress={() => setDay(item)}
+                  onPress={() =>
+                    setDay(item)
+                  }
                   style={[
                     styles.day,
-                    day === item && styles.dayActive,
+                    day === item &&
+                      styles.dayActive,
                   ]}
                 >
                   <Text
                     style={[
                       styles.dayText,
-                      day === item && styles.dayTextActive,
+                      day === item &&
+                        styles.dayTextActive,
                     ]}
                   >
                     {item}
@@ -543,39 +710,56 @@ export default function App() {
               ))}
             </View>
 
+            <Text style={styles.label}>
+              Välj:
+            </Text>
+
             <View style={styles.types}>
-              {ORDER_TYPES.map(([name, price]) => (
-                <TouchableOpacity
-                  key={name}
-                  onPress={() => setOrderType(name)}
-                  style={[
-                    styles.type,
-                    orderType === name && styles.typeActive,
-                  ]}
-                >
-                  <Text
+              {ORDER_TYPES.map(
+                ([name, price]) => (
+                  <TouchableOpacity
+                    key={name}
+                    onPress={() =>
+                      setOrderType(name)
+                    }
                     style={[
-                      styles.typeText,
-                      orderType === name && styles.typeTextActive,
+                      styles.type,
+                      orderType === name &&
+                        styles.typeActive,
                     ]}
                   >
-                    {name}
-                    {'\n'}
-                    {price} kr
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={[
+                        styles.typeText,
+                        orderType === name &&
+                          styles.typeTextActive,
+                      ]}
+                    >
+                      {name}
+                      {'\n'}
+                      {price} kr
+                    </Text>
+                  </TouchableOpacity>
+                )
+              )}
             </View>
 
-            {weeklyLunch[day].map((name, index) => (
-              <Food
-                key={`${day}-${name}`}
-                number={index + 1}
-                name={name}
-                price={lunchPrice}
-                onAdd={() => addToCart(name, lunchPrice)}
-              />
-            ))}
+            {weeklyLunch[day].map(
+              (name, index) => (
+                <Food
+                  key={`${day}-${name}`}
+                  number={index + 1}
+                  name={name}
+                  price={lunchPrice}
+                  onAdd={() =>
+                    addToCart(
+                      name,
+                      lunchPrice
+                    )
+                  }
+                />
+              )
+            )}
           </>
         )}
 
@@ -585,14 +769,21 @@ export default function App() {
               {section}
             </Text>
 
-            {MENU[section].map(([name, price]) => (
-              <Food
-                key={name}
-                name={name}
-                price={price}
-                onAdd={() => addToCart(name, price)}
-              />
-            ))}
+            {MENU[section].map(
+              ([name, price]) => (
+                <Food
+                  key={name}
+                  name={name}
+                  price={price}
+                  onAdd={() =>
+                    addToCart(
+                      name,
+                      price
+                    )
+                  }
+                />
+              )
+            )}
           </>
         )}
 
@@ -602,34 +793,58 @@ export default function App() {
               Boka bord
             </Text>
 
+            <Text style={styles.label}>
+              Datum 📅
+            </Text>
+
             <TextInput
               style={styles.field}
               value={bookingDate}
-              onChangeText={setBookingDate}
-              placeholder="Datum, t.ex. 2026-09-20"
+              onChangeText={
+                setBookingDate
+              }
+              placeholder="T.ex. 2026-09-21"
             />
+
+            <Text style={styles.label}>
+              Tid 🕐
+            </Text>
 
             <TextInput
               style={styles.field}
               value={bookingTime}
-              onChangeText={setBookingTime}
-              placeholder="Tid, t.ex. 12:30"
+              onChangeText={
+                setBookingTime
+              }
+              placeholder="T.ex. 12:30"
             />
+
+            <Text style={styles.label}>
+              Antal personer
+            </Text>
 
             <TextInput
               style={styles.field}
               keyboardType="number-pad"
               value={bookingGuests}
-              onChangeText={setBookingGuests}
-              placeholder="Antal personer"
+              onChangeText={
+                setBookingGuests
+              }
+              placeholder="2"
             />
+
+            <Text style={styles.label}>
+              Meddelande
+            </Text>
 
             <TextInput
               style={styles.messageInput}
               multiline
               value={bookingMessage}
-              onChangeText={setBookingMessage}
-              placeholder="Meddelande till restaurangen..."
+              onChangeText={
+                setBookingMessage
+              }
+              placeholder="Skriv meddelande till restaurangen..."
             />
 
             <AppButton
@@ -641,10 +856,13 @@ export default function App() {
 
         <AppButton
           title={`Kundkorg (${cart.reduce(
-            (sum, item) => sum + item.qty,
+            (sum, item) =>
+              sum + item.qty,
             0
           )}) • ${total} kr`}
-          onPress={() => setShowCart(true)}
+          onPress={() =>
+            setShowCart(true)
+          }
         />
 
         <View style={styles.adminBox}>
@@ -659,7 +877,9 @@ export default function App() {
                 autoCapitalize="none"
                 keyboardType="email-address"
                 value={adminEmail}
-                onChangeText={setAdminEmail}
+                onChangeText={
+                  setAdminEmail
+                }
                 placeholder="E-post"
               />
 
@@ -667,7 +887,9 @@ export default function App() {
                 style={styles.field}
                 secureTextEntry
                 value={adminPassword}
-                onChangeText={setAdminPassword}
+                onChangeText={
+                  setAdminPassword
+                }
                 placeholder="Lösenord"
               />
 
@@ -688,13 +910,20 @@ export default function App() {
                 onPress={loadOrders}
               />
 
-              <Text style={styles.adminHeading}>
+              <Text
+                style={
+                  styles.adminHeading
+                }
+              >
                 Inkommande beställningar
               </Text>
 
               {orders.length === 0 && (
-                <Text style={styles.muted}>
-                  Inga beställningar att visa.
+                <Text
+                  style={styles.muted}
+                >
+                  Inga beställningar att
+                  visa.
                 </Text>
               )}
 
@@ -703,70 +932,108 @@ export default function App() {
                   key={order.id}
                   style={styles.orderCard}
                 >
-                  <Text style={styles.orderTitle}>
-                    Beställning #{order.id}
+                  <Text
+                    style={
+                      styles.orderTitle
+                    }
+                  >
+                    Beställning #
+                    {order.id}
                   </Text>
 
-                  <Text style={styles.muted}>
-                    Status: {order.status || 'Ny'}
+                  <Text
+                    style={styles.muted}
+                  >
+                    Status:{' '}
+                    {order.status ||
+                      'Ny'}
                   </Text>
 
-                  {!!order.order_date && (
+                  {!!order.pickup_date && (
                     <Text>
-                      Datum: {order.order_date}
+                      Datum:{' '}
+                      {order.pickup_date}
                     </Text>
                   )}
 
-                  {!!order.order_time && (
+                  {!!order.pickup_time && (
                     <Text>
-                      Tid: {order.order_time}
+                      Tid:{' '}
+                      {order.pickup_time}
                     </Text>
                   )}
 
                   {!!order.order_type && (
                     <Text>
-                      Typ: {order.order_type}
+                      Typ:{' '}
+                      {order.order_type}
                     </Text>
                   )}
 
-                  {Array.isArray(order.items) &&
-                    order.items.map((item, index) => (
-                      <Text
-                        key={`${order.id}-${index}`}
-                      >
-                        • {item.qty} × {item.name}
-                      </Text>
-                    ))}
+                  {Array.isArray(
+                    order.items
+                  ) &&
+                    order.items.map(
+                      (item, index) => (
+                        <Text
+                          key={`${order.id}-${index}`}
+                        >
+                          • {item.qty} ×{' '}
+                          {item.name}
+                        </Text>
+                      )
+                    )}
 
                   {!!order.message && (
-                    <Text style={styles.orderMessage}>
-                      Meddelande: {order.message}
+                    <Text
+                      style={
+                        styles.orderMessage
+                      }
+                    >
+                      Meddelande:{' '}
+                      {order.message}
                     </Text>
                   )}
 
-                  <Text style={styles.orderTotal}>
-                    Totalt: {order.total || 0} kr
+                  <Text
+                    style={
+                      styles.orderTotal
+                    }
+                  >
+                    Totalt:{' '}
+                    {order.total || 0} kr
                   </Text>
 
-                  {order.status !== 'Maten färdig' && (
+                  {order.status !==
+                    'Maten färdig' && (
                     <AppButton
                       title="Maten färdig"
-                      onPress={() => foodReady(order)}
+                      onPress={() =>
+                        foodReady(order)
+                      }
                     />
                   )}
                 </View>
               ))}
 
-              <Text style={styles.adminHeading}>
+              <Text
+                style={
+                  styles.adminHeading
+                }
+              >
                 Ändra veckomeny
               </Text>
 
               <View style={styles.days}>
-                {Object.keys(weeklyLunch).map((item) => (
+                {Object.keys(
+                  weeklyLunch
+                ).map((item) => (
                   <TouchableOpacity
                     key={`edit-${item}`}
                     onPress={() =>
-                      openDayForEditing(item)
+                      openDayForEditing(
+                        item
+                      )
                     }
                     style={[
                       styles.day,
@@ -794,27 +1061,35 @@ export default function App() {
               <TextInput
                 style={styles.field}
                 value={editDish1}
-                onChangeText={setEditDish1}
+                onChangeText={
+                  setEditDish1
+                }
                 placeholder="Maträtt 1"
               />
 
               <TextInput
                 style={styles.field}
                 value={editDish2}
-                onChangeText={setEditDish2}
+                onChangeText={
+                  setEditDish2
+                }
                 placeholder="Maträtt 2"
               />
 
               <TextInput
                 style={styles.field}
                 value={editDish3}
-                onChangeText={setEditDish3}
+                onChangeText={
+                  setEditDish3
+                }
                 placeholder="Maträtt 3"
               />
 
               <AppButton
                 title="Spara meny"
-                onPress={saveMenuChanges}
+                onPress={
+                  saveMenuChanges
+                }
               />
 
               <AppButton
@@ -844,12 +1119,19 @@ function Header() {
   );
 }
 
-function Food({ name, price, onAdd, number }) {
+function Food({
+  name,
+  price,
+  onAdd,
+  number,
+}) {
   return (
     <View style={styles.card}>
       <View style={{ flex: 1 }}>
         <Text style={styles.item}>
-          {number ? `${number}. ` : ''}
+          {number
+            ? `${number}. `
+            : ''}
           {name}
         </Text>
 
@@ -870,19 +1152,25 @@ function Food({ name, price, onAdd, number }) {
   );
 }
 
-function AppButton({ title, onPress, outline }) {
+function AppButton({
+  title,
+  onPress,
+  outline,
+}) {
   return (
     <TouchableOpacity
       onPress={onPress}
       style={[
         styles.button,
-        outline && styles.buttonOutline,
+        outline &&
+          styles.buttonOutline,
       ]}
     >
       <Text
         style={[
           styles.buttonText,
-          outline && styles.buttonTextOutline,
+          outline &&
+            styles.buttonTextOutline,
         ]}
       >
         {title}
@@ -1213,10 +1501,10 @@ const styles = StyleSheet.create({
     color: '#315574',
   },
 
-    orderTotal: {
+  orderTotal: {
     marginTop: 8,
     fontSize: 16,
     fontWeight: '900',
     color: '#102b49',
   },
-});
+});           

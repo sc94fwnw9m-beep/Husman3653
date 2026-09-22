@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  Image,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -11,12 +13,14 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { createClient } from '@supabase/supabase-js';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 const supabaseUrl = 'https://ujmfvlktaxhefrqzkmdl.supabase.co';
 const supabaseKey =
   'sb_publishable_zcu1n20SXR7xlizKMHWHgw_I1jNK7JS';
 
 const supabase = createClient(supabaseUrl, supabaseKey);
+const OWNER_CODE = '3653';
 
 const DEFAULT_LUNCH = {
   Måndag: [
@@ -116,6 +120,26 @@ const CATEGORIES = [
   'Boka bord',
 ];
 
+const FOOD_IMAGES = {
+  Lunch: 'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=1200&q=82',
+  Pasta: 'https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=900&q=82',
+  Hamburgare: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=900&q=82',
+  Pizza: 'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&w=900&q=82',
+  Kebab: 'https://images.unsplash.com/photo-1529006557810-274b9b2fc783?auto=format&fit=crop&w=900&q=82',
+  Sallader: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=900&q=82',
+  'Veganska maträtter': 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=900&q=82',
+  Frukost: 'https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?auto=format&fit=crop&w=900&q=82',
+  'Frysta matlådor': 'https://images.unsplash.com/photo-1543353071-087092ec393a?auto=format&fit=crop&w=900&q=82',
+};
+
+const formatDate = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+const formatTime = (date) => date.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+
 export default function App() {
   const [section, setSection] = useState('Lunch');
   const [day, setDay] = useState('Måndag');
@@ -140,6 +164,11 @@ export default function App() {
   const [message, setMessage] =
     useState('');
 
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [showOrderDatePicker, setShowOrderDatePicker] = useState(false);
+  const [showOrderTimePicker, setShowOrderTimePicker] = useState(false);
+
   // Boka bord
   const [bookingDate, setBookingDate] =
     useState('');
@@ -153,6 +182,11 @@ export default function App() {
   const [bookingMessage, setBookingMessage] =
     useState('');
 
+  const [bookingName, setBookingName] = useState('');
+  const [bookingPhone, setBookingPhone] = useState('');
+  const [showBookingDatePicker, setShowBookingDatePicker] = useState(false);
+  const [showBookingTimePicker, setShowBookingTimePicker] = useState(false);
+
   // Admin
   const [admin, setAdmin] =
     useState(false);
@@ -163,8 +197,11 @@ export default function App() {
   const [adminPassword, setAdminPassword] =
     useState('');
 
+  const [ownerCode, setOwnerCode] = useState('');
+
   const [orders, setOrders] =
     useState([]);
+  const [bookings, setBookings] = useState([]);
 
   // Ändra lunchmeny
   const [editDay, setEditDay] =
@@ -195,10 +232,29 @@ export default function App() {
     )?.[1] || 139;
 
   useEffect(() => {
+    loadWeeklyMenu();
+  }, []);
+
+  useEffect(() => {
     if (admin) {
       loadOrders();
+      loadBookings();
     }
   }, [admin]);
+
+  async function loadWeeklyMenu() {
+    const { data, error } = await supabase
+      .from('weekly_menu')
+      .select('day,dishes');
+
+    if (!error && data?.length) {
+      const savedMenu = data.reduce((result, row) => ({
+        ...result,
+        [row.day]: Array.isArray(row.dishes) ? row.dishes : [],
+      }), {});
+      setWeeklyLunch((old) => ({ ...old, ...savedMenu }));
+    }
+  }
 
   function addToCart(name, price) {
     setCart((old) => {
@@ -255,6 +311,11 @@ export default function App() {
       return;
     }
 
+    if (!customerName.trim() || !customerPhone.trim()) {
+      Alert.alert('Beställning', 'Fyll i namn och telefonnummer.');
+      return;
+    }
+
     if (
       !orderDate.trim() ||
       !orderTime.trim()
@@ -270,7 +331,7 @@ export default function App() {
       .from('orders')
       .insert({
         items: cart,
-        message: message.trim(),
+        message: `Kund: ${customerName.trim()}\nTelefon: ${customerPhone.trim()}${message.trim() ? `\nMeddelande: ${message.trim()}` : ''}`,
         total: total,
         status: 'Ny',
 
@@ -299,6 +360,8 @@ export default function App() {
     );
 
     setCart([]);
+    setCustomerName('');
+    setCustomerPhone('');
     setMessage('');
     setOrderDate('');
     setOrderTime('');
@@ -306,6 +369,11 @@ export default function App() {
   }
 
   async function bookTable() {
+    if (!bookingName.trim() || !bookingPhone.trim()) {
+      Alert.alert('Boka bord', 'Fyll i namn och telefonnummer.');
+      return;
+    }
+
     if (
       !bookingDate.trim() ||
       !bookingTime.trim()
@@ -324,8 +392,7 @@ export default function App() {
         booking_time: bookingTime.trim(),
         guests:
           Number(bookingGuests) || 2,
-        message:
-          bookingMessage.trim(),
+        message: `Kund: ${bookingName.trim()}\nTelefon: ${bookingPhone.trim()}${bookingMessage.trim() ? `\nMeddelande: ${bookingMessage.trim()}` : ''}`,
         status: 'Ny',
       });
 
@@ -347,11 +414,18 @@ export default function App() {
 
     setBookingDate('');
     setBookingTime('');
+    setBookingName('');
+    setBookingPhone('');
     setBookingGuests('2');
     setBookingMessage('');
   }
 
   async function login() {
+    if (ownerCode.trim() !== OWNER_CODE) {
+      Alert.alert('Admin', 'Fel ägarkod.');
+      return;
+    }
+
     if (
       !adminEmail.trim() ||
       !adminPassword
@@ -381,6 +455,7 @@ export default function App() {
 
     setAdmin(true);
     setAdminPassword('');
+    setOwnerCode('');
   }
 
   async function logout() {
@@ -388,6 +463,7 @@ export default function App() {
 
     setAdmin(false);
     setOrders([]);
+    setBookings([]);
   }
 
   async function loadOrders() {
@@ -412,6 +488,15 @@ export default function App() {
     }
 
     setOrders(data || []);
+  }
+
+  async function loadBookings() {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*')
+      .order('booking_date', { ascending: true });
+
+    if (!error) setBookings(data || []);
   }
 
   async function foodReady(order) {
@@ -450,7 +535,7 @@ export default function App() {
     setEditDish3(dishes[2] || '');
   }
 
-  function saveMenuChanges() {
+  async function saveMenuChanges() {
     if (!editDish1.trim()) {
       Alert.alert(
         'Meny',
@@ -471,9 +556,18 @@ export default function App() {
       [editDay]: newDishes,
     }));
 
+    const { error } = await supabase
+      .from('weekly_menu')
+      .upsert({ day: editDay, dishes: newDishes }, { onConflict: 'day' });
+
+    if (error) {
+      Alert.alert('Meny', 'Menyn ändrades på mobilen men kunde inte publiceras till alla kunder.');
+      return;
+    }
+
     Alert.alert(
-      'Meny sparad',
-      `${editDay} är uppdaterad.`
+      'Meny publicerad',
+      `${editDay} är uppdaterad för alla kunder.`
     );
   }
 
@@ -565,27 +659,66 @@ export default function App() {
             Totalt: {total} kr
           </Text>
 
+          <Text style={styles.label}>Namn</Text>
+          <TextInput
+            style={styles.field}
+            value={customerName}
+            onChangeText={setCustomerName}
+            placeholder="Ditt namn"
+            autoComplete="name"
+          />
+
+          <Text style={styles.label}>Telefonnummer</Text>
+          <TextInput
+            style={styles.field}
+            value={customerPhone}
+            onChangeText={setCustomerPhone}
+            placeholder="T.ex. 070 123 45 67"
+            keyboardType="phone-pad"
+            autoComplete="tel"
+          />
+
           <Text style={styles.label}>
             Datum 📅
           </Text>
 
-          <TextInput
-            style={styles.field}
-            value={orderDate}
-            onChangeText={setOrderDate}
-            placeholder="T.ex. 2026-09-21"
-          />
+          <TouchableOpacity style={styles.pickerButton} onPress={() => setShowOrderDatePicker(true)}>
+            <Text style={orderDate ? styles.pickerValue : styles.pickerPlaceholder}>
+              {orderDate || 'Välj datum'}
+            </Text>
+          </TouchableOpacity>
+          {showOrderDatePicker && (
+            <DateTimePicker
+              value={orderDate ? new Date(`${orderDate}T12:00:00`) : new Date()}
+              mode="date"
+              minimumDate={new Date()}
+              onChange={(_, selected) => {
+                setShowOrderDatePicker(Platform.OS === 'ios');
+                if (selected) setOrderDate(formatDate(selected));
+              }}
+            />
+          )}
 
           <Text style={styles.label}>
             Tid 🕐
           </Text>
 
-          <TextInput
-            style={styles.field}
-            value={orderTime}
-            onChangeText={setOrderTime}
-            placeholder="T.ex. 12:30"
-          />
+          <TouchableOpacity style={styles.pickerButton} onPress={() => setShowOrderTimePicker(true)}>
+            <Text style={orderTime ? styles.pickerValue : styles.pickerPlaceholder}>
+              {orderTime || 'Välj tid'}
+            </Text>
+          </TouchableOpacity>
+          {showOrderTimePicker && (
+            <DateTimePicker
+              value={new Date()}
+              mode="time"
+              minuteInterval={5}
+              onChange={(_, selected) => {
+                setShowOrderTimePicker(Platform.OS === 'ios');
+                if (selected) setOrderTime(formatTime(selected));
+              }}
+            />
+          )}
 
           <Text style={styles.label}>
             Meddelande till restaurangen
@@ -634,6 +767,14 @@ export default function App() {
         }
       >
         <Header />
+
+        <View style={styles.hero}>
+          <Image source={{ uri: FOOD_IMAGES.Lunch }} style={styles.heroImage} />
+          <View style={styles.heroOverlay}>
+            <Text style={styles.heroTitle}>Hemlagad lunch i Kungens Kurva</Text>
+            <Text style={styles.heroText}>Välj din mat och betala på plats.</Text>
+          </View>
+        </View>
 
         <View style={styles.info}>
           <Text style={styles.infoText}>
@@ -769,6 +910,10 @@ export default function App() {
               {section}
             </Text>
 
+            {!!FOOD_IMAGES[section] && (
+              <Image source={{ uri: FOOD_IMAGES[section] }} style={styles.sectionImage} />
+            )}
+
             {MENU[section].map(
               ([name, price]) => (
                 <Food
@@ -793,31 +938,66 @@ export default function App() {
               Boka bord
             </Text>
 
+            <Text style={styles.label}>Namn</Text>
+            <TextInput
+              style={styles.field}
+              value={bookingName}
+              onChangeText={setBookingName}
+              placeholder="Ditt namn"
+              autoComplete="name"
+            />
+
+            <Text style={styles.label}>Telefonnummer</Text>
+            <TextInput
+              style={styles.field}
+              value={bookingPhone}
+              onChangeText={setBookingPhone}
+              placeholder="T.ex. 070 123 45 67"
+              keyboardType="phone-pad"
+              autoComplete="tel"
+            />
+
             <Text style={styles.label}>
               Datum 📅
             </Text>
 
-            <TextInput
-              style={styles.field}
-              value={bookingDate}
-              onChangeText={
-                setBookingDate
-              }
-              placeholder="T.ex. 2026-09-21"
-            />
+            <TouchableOpacity style={styles.pickerButton} onPress={() => setShowBookingDatePicker(true)}>
+              <Text style={bookingDate ? styles.pickerValue : styles.pickerPlaceholder}>
+                {bookingDate || 'Välj datum'}
+              </Text>
+            </TouchableOpacity>
+            {showBookingDatePicker && (
+              <DateTimePicker
+                value={bookingDate ? new Date(`${bookingDate}T12:00:00`) : new Date()}
+                mode="date"
+                minimumDate={new Date()}
+                onChange={(_, selected) => {
+                  setShowBookingDatePicker(Platform.OS === 'ios');
+                  if (selected) setBookingDate(formatDate(selected));
+                }}
+              />
+            )}
 
             <Text style={styles.label}>
               Tid 🕐
             </Text>
 
-            <TextInput
-              style={styles.field}
-              value={bookingTime}
-              onChangeText={
-                setBookingTime
-              }
-              placeholder="T.ex. 12:30"
-            />
+            <TouchableOpacity style={styles.pickerButton} onPress={() => setShowBookingTimePicker(true)}>
+              <Text style={bookingTime ? styles.pickerValue : styles.pickerPlaceholder}>
+                {bookingTime || 'Välj tid'}
+              </Text>
+            </TouchableOpacity>
+            {showBookingTimePicker && (
+              <DateTimePicker
+                value={new Date()}
+                mode="time"
+                minuteInterval={5}
+                onChange={(_, selected) => {
+                  setShowBookingTimePicker(Platform.OS === 'ios');
+                  if (selected) setBookingTime(formatTime(selected));
+                }}
+              />
+            )}
 
             <Text style={styles.label}>
               Antal personer
@@ -874,6 +1054,16 @@ export default function App() {
             <>
               <TextInput
                 style={styles.field}
+                keyboardType="number-pad"
+                secureTextEntry
+                value={ownerCode}
+                onChangeText={setOwnerCode}
+                placeholder="Ägarkod"
+                maxLength={4}
+              />
+
+              <TextInput
+                style={styles.field}
                 autoCapitalize="none"
                 keyboardType="email-address"
                 value={adminEmail}
@@ -907,7 +1097,10 @@ export default function App() {
 
               <AppButton
                 title="Uppdatera beställningar"
-                onPress={loadOrders}
+                onPress={() => {
+                  loadOrders();
+                  loadBookings();
+                }}
               />
 
               <Text
@@ -1016,6 +1209,24 @@ export default function App() {
                 </View>
               ))}
 
+              <Text style={styles.adminHeading}>Bordsbokningar</Text>
+
+              {bookings.length === 0 && (
+                <Text style={styles.muted}>Inga bokningar att visa.</Text>
+              )}
+
+              {bookings.map((booking) => (
+                <View key={booking.id} style={styles.orderCard}>
+                  <Text style={styles.orderTitle}>
+                    {booking.booking_date} kl. {booking.booking_time}
+                  </Text>
+                  <Text>{booking.guests || 2} personer</Text>
+                  {!!booking.message && (
+                    <Text style={styles.orderMessage}>{booking.message}</Text>
+                  )}
+                </View>
+              ))}
+
               <Text
                 style={
                   styles.adminHeading
@@ -1108,6 +1319,7 @@ export default function App() {
 function Header() {
   return (
     <View style={styles.header}>
+      <Image source={require('./assets/icon.png')} style={styles.logo} />
       <Text style={styles.brand}>
         Husman Lunchrestaurang
       </Text>
@@ -1196,6 +1408,55 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 12,
     paddingBottom: 18,
+  },
+
+  logo: {
+    width: 78,
+    height: 78,
+    borderRadius: 18,
+    marginBottom: 9,
+  },
+
+  hero: {
+    height: 210,
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginBottom: 14,
+    backgroundColor: '#dbe9f5',
+  },
+
+  heroImage: {
+    width: '100%',
+    height: '100%',
+  },
+
+  heroOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    padding: 16,
+    backgroundColor: 'rgba(5, 33, 62, 0.76)',
+  },
+
+  heroTitle: {
+    color: '#ffffff',
+    fontSize: 20,
+    fontWeight: '900',
+  },
+
+  heroText: {
+    color: '#eaf5ff',
+    marginTop: 4,
+    fontWeight: '600',
+  },
+
+  sectionImage: {
+    width: '100%',
+    height: 175,
+    borderRadius: 18,
+    marginBottom: 13,
+    backgroundColor: '#dbe9f5',
   },
 
   brand: {
@@ -1441,6 +1702,26 @@ const styles = StyleSheet.create({
     padding: 13,
     fontSize: 16,
     marginBottom: 9,
+  },
+
+  pickerButton: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#cbdceb',
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 9,
+  },
+
+  pickerValue: {
+    color: '#102b49',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+
+  pickerPlaceholder: {
+    color: '#7a8d9f',
+    fontSize: 16,
   },
 
   empty: {

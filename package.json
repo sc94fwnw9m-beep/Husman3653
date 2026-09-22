@@ -1,6 +1,6 @@
 {
   "name": "husman-lunchrestaurang",
-  "version": "1.0.4",
+  "version": "1.0.7",
   "private": true,
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
@@ -11,14 +11,14 @@
     "build:ios": "eas build --platform ios --profile production"
   },
   "dependencies": {
+    "@react-native-community/datetimepicker": "^8.4.4",
+    "@supabase/supabase-js": "^2.57.4",
     "expo": "~54.0.0",
     "expo-status-bar": "~3.0.8",
     "react": "19.1.0",
-    "react-native": "0.81.4",
- "react-native-safe-area-context": "~5.6.0",
-"@supabase/supabase-js": "^2.57.4"
-}, 
-  
+    "react-native": "0.81.5",
+    "react-native-safe-area-context": "~5.6.0"
+  },
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@babel/plugin-transform-class-properties": "^7.25.9",

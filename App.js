@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+  import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Image,
@@ -24,37 +24,38 @@ const OWNER_CODE = '3653';
 
 const DEFAULT_LUNCH = {
   Måndag: [
-    'Piccata milanese med ris, tomatsås',
-    'Hackad biff med stekt potatis, krämig paprikasås',
-    'Panerad fiskfilé med kokt potatis, remouladsås',
+    'Grillad fläsknoisette med stekt potatis, champinjonsås',
+    'Köttfärsbiff med kokt potatis, gräddsås, lingonsylt',
+    'Panerad fiskfilé med kokt potatis, kall dillsås',
   ],
   Tisdag: [
     'Raggmunk med stekt fläsk, lingonsylt eller löksås, kokt potatis',
-    'Kyckling bourguignon med grönsaker, ris, vitlökskräm',
-    'Panerad flundrafilé med kokt potatis, kall dillsås',
+    'Kycklingschnitzel med stekt potatis, rödvinssås, ärtor',
+    'Fiskgratäng med räkor, grönsaker, dillsås, kokt potatis',
   ],
   Onsdag: [
-    'Wallenbergare med potatismos, gräddsås, lingonsylt',
-    'Korv stroganoff med paprika, lök, krämig chilisås, ris',
-    'Panerad rödspättafilé med kokt potatis, avokadoröra',
+    'Kalvfärslimpa med potatismos, gräddsås, lingonsylt',
+    'Biff Stroganoff med paprika, lök, krämig chilisås, ris',
+    'Panerad fiskfilé med kokt potatis, dansk remouladsås',
   ],
   Torsdag: [
-    'Fläskschnitzel med stekt potatis och sås',
-    'Dagens husmanskost',
-    'Dagens fisk',
+    'Grillad fläskfilé med potatisgratäng, rosmarinsås',
+    'Kycklinggryta med grönsaker, currysås, ris',
+    'Panerad kummel med kokt potatis, limesås',
+    'Idag bjuder vi på pannkakor! Självklart med sylt och grädde!',
   ],
   Fredag: [
-    'Dagens husmanskost',
-    'Dagens alternativ',
-    'Dagens fisk',
+    'Grillad entrecôte med stekt potatis, rödvinssås, bearnaisesås',
+    'Kalops med kalvkött, kokt potatis, rödbetor',
+    'Panerad torskfilé med kokt potatis, remouladsås',
   ],
 };
 
 const MENU = {
 Pasta: [
-  ['Penne Paradiso med strimlad biff, champinjoner, vitlök, gräddsås, ost', 139],
+  ['Penne paradiso med strimlad biff, champinjoner, vitlök, gräddsås, ost', 139],
   ['Con Pollo med strimlad kycklingfilé, krämig chilisås, ost', 139],
-  ['Spaghetti Carbonara med gräddsås, svartpeppar, äggula, ost', 139],
+  ['Spaghetti Carbonara med gräddsås, svart peppar, äggula, ost', 139],
 ],
  
  Hamburgare: [
@@ -127,7 +128,7 @@ const CATEGORIES = [
 ];
 
 const FOOD_IMAGES = {
-  Lunch: 'https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=1200&q=82',
+  Lunch: 'https://images.unsplash.com/photo-1754988015255-483a68ed3e5b?auto=format&fit=crop&w=1200&q=82',
   Pasta: 'https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=900&q=82',
   Hamburgare: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=900&q=82',
   Pizza: 'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&w=900&q=82',
@@ -148,7 +149,13 @@ const formatTime = (date) => date.toLocaleTimeString('sv-SE', { hour: '2-digit',
 
 export default function App() {
   const [section, setSection] = useState('Lunch');
-  const [day, setDay] = useState('Måndag');
+  const [day, setDay] = useState(() => {
+    const days = ['Söndag', 'Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag'];
+    const today = days[new Date().getDay()];
+    return ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag'].includes(today)
+      ? today
+      : 'Måndag';
+  });
 
   const [weeklyLunch, setWeeklyLunch] =
     useState(DEFAULT_LUNCH);
@@ -197,8 +204,6 @@ const [fullMenu, setFullMenu] = useState(MENU);
   const [admin, setAdmin] =
     useState(false);
 
-  const [showAdminLogin, setShowAdminLogin] = useState(false);
-
   const [adminEmail, setAdminEmail] =
     useState('');
 
@@ -236,6 +241,13 @@ const [fullMenu, setFullMenu] = useState(MENU);
     ORDER_TYPES.find(
       (item) => item[0] === orderType
     )?.[1] || 139;
+
+  const breakfastNames = new Set(
+    (fullMenu.Frukost || []).map(([name]) => name)
+  );
+  const cartHasBreakfast = cart.some((item) =>
+    breakfastNames.has(item.name)
+  );
 
   useEffect(() => {
     loadWeeklyMenu();
@@ -444,7 +456,6 @@ async function logout() {
   await supabase.auth.signOut();
 
   setAdmin(false);
-  setShowAdminLogin(false);
   setOrders([]);
   setBookings([]);
 }
@@ -561,7 +572,7 @@ function updateFullMenu(category, newItems) {
     [category]: newItems,
   }));
 }
-  if (showCart) {
+    if (showCart) {
     return (
       <SafeAreaView style={styles.page}>
         <StatusBar style="dark" />
@@ -571,7 +582,7 @@ function updateFullMenu(category, newItems) {
             styles.content
           }
         >
-          <Header onAdminOpen={() => setShowAdminLogin(true)} />
+          <Header />
 
           <Text style={styles.heading}>
             Din beställning
@@ -648,6 +659,33 @@ function updateFullMenu(category, newItems) {
           <Text style={styles.total}>
             Totalt: {total} kr
           </Text>
+
+          {!cartHasBreakfast && (
+            <>
+              <Text style={styles.label}>Hur vill du ha maten?</Text>
+              <View style={styles.types}>
+                {ORDER_TYPES.map(([name, price]) => (
+                  <TouchableOpacity
+                    key={name}
+                    onPress={() => setOrderType(name)}
+                    style={[
+                      styles.type,
+                      orderType === name && styles.typeActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.typeText,
+                        orderType === name && styles.typeTextActive,
+                      ]}
+                    >
+                      {name}{'\n'}{price} kr
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          )}
 
           <Text style={styles.label}>Namn</Text>
           <TextInput
@@ -752,7 +790,7 @@ function updateFullMenu(category, newItems) {
           styles.content
         }
       >
-        <Header onAdminOpen={() => setShowAdminLogin(true)} />
+        <Header />
 
         <View style={styles.hero}>
           <Image source={{ uri: FOOD_IMAGES.Lunch }} style={styles.heroImage} />
@@ -766,6 +804,14 @@ function updateFullMenu(category, newItems) {
           <Text style={styles.infoText}>
             Beställ i appen • Betala på
             restaurangen
+          </Text>
+        </View>
+
+        <View style={styles.info}>
+          <Text style={styles.infoText}>
+            Lunch 139 kr • Pensionär 129 kr • Mat för avhämtning 129 kr • Endast matlåda 119 kr
+            {'\n'}Inkl. smör, bröd, dryck, kaffe, hembakt bröd, salladsbuffé, te, kaka och soppa
+            {'\n'}Lunchhäfte: köp 10 luncher – 11:e lunchen gratis
           </Text>
         </View>
 
@@ -879,27 +925,16 @@ function updateFullMenu(category, newItems) {
                   name={name}
                   price={lunchPrice}
 onAdd={() => {
-  const days = [
-    'Söndag',
-    'Måndag',
-    'Tisdag',
-    'Onsdag',
-    'Torsdag',
-    'Fredag',
-    'Lördag',
-  ];
+  const days = ['Söndag', 'Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag'];
+  const today = days[new Date().getDay()];
 
-const todayIndex = new Date().getDay();
-const today = days[todayIndex];
-const tomorrow = days[(todayIndex + 1) % 7];
-
-if (day !== today && day !== tomorrow) {
-  Alert.alert(
-    'Veckans meny',
-    `Du kan bara beställa ${today}s eller ${tomorrow}s meny.`
-  );
-  return;
-}
+  if (day !== today || !['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag'].includes(today)) {
+    Alert.alert(
+      'Veckans meny',
+      'Du kan titta på andra dagars lunch, men bara beställa dagens lunch.'
+    );
+    return;
+  }
 
   addToCart(name, lunchPrice);
 }}
@@ -909,7 +944,7 @@ if (day !== today && day !== tomorrow) {
           </>
         )}
 
-        {fullMenu[section] && (
+        {MENU[section] && (
           <>
             <Text style={styles.heading}>
               {section}
@@ -919,7 +954,7 @@ if (day !== today && day !== tomorrow) {
               <Image source={{ uri: FOOD_IMAGES[section] }} style={styles.sectionImage} />
             )}
 
-          {fullMenu[section].map(
+            {MENU[section].map(
               ([name, price]) => (
                 <Food
                   key={name}
@@ -991,10 +1026,15 @@ if (day !== today && day !== tomorrow) {
               {['08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30','14:00'].map((time) => (
                 <TouchableOpacity
                   key={time}
-                  style={styles.pickerButton}
+                  style={[
+                    styles.pickerButton,
+                    bookingTime === time && styles.timeButtonActive,
+                  ]}
                   onPress={() => setBookingTime(time)}
                 >
-                  <Text>{time}</Text>
+                  <Text style={bookingTime === time ? styles.timeButtonTextActive : styles.pickerValue}>
+                    {time}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -1045,7 +1085,6 @@ if (day !== today && day !== tomorrow) {
           }
         />
 
-        {(showAdminLogin || admin) && (
         <View style={styles.adminBox}>
           <Text style={styles.adminTitle}>
             Restaurang / Admin
@@ -1334,17 +1373,16 @@ if (day !== today && day !== tomorrow) {
             </>
           )}
         </View>
-        )}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function Header({ onAdminOpen }) {
+function Header() {
   return (
     <View style={styles.header}>
       <Image source={require('./assets/icon.png')} style={styles.logo} />
-      <Text style={styles.brand} onLongPress={onAdminOpen}>
+      <Text style={styles.brand}>
         Husman Lunchrestaurang
       </Text>
 
@@ -1748,6 +1786,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 
+  timeButtonActive: {
+    backgroundColor: BLUE,
+    borderColor: BLUE,
+  },
+
+  timeButtonTextActive: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+
   empty: {
     textAlign: 'center',
     padding: 25,
@@ -1813,5 +1862,9 @@ const styles = StyleSheet.create({
     color: '#102b49',
   },
 });           
+  
+  
+    
+
 
               

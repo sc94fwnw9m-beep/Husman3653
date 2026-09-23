@@ -995,7 +995,7 @@ if (day !== today && day !== tomorrow) {
             </TouchableOpacity>
             {showBookingTimePicker && (
               <DateTimePicker
-                value={new Date()}
+            value={bookingTime ? new Date(`2000-01-01T${bookingTime}:00`) : new Date()}
                 mode="time"
                 minuteInterval={5}
                 onChange={(_, selected) => {

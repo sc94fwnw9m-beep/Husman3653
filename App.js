@@ -552,7 +552,12 @@ async function logout() {
       `${editDay} är uppdaterad för alla kunder.`
     );
   }
-
+function updateFullMenu(category, newItems) {
+  setFullMenu((old) => ({
+    ...old,
+    [category]: newItems,
+  }));
+}
   if (showCart) {
     return (
       <SafeAreaView style={styles.page}>
@@ -1225,10 +1230,40 @@ if (day !== today && day !== tomorrow) {
                   styles.adminHeading
                 }
               >
-                Ändra veckomeny
+Ändra hela menyn
               </Text>
-
-              <View style={styles.days}>
+<Text style={styles.adminHeading}>
+  Ändra övriga maträtter
+</Text>
+           {CATEGORIES.filter((category) => category !== 'Lunch' && category !== 'Boka bord').map((category) => (
+  <AppButton
+    key={category}
+    title={`Ändra ${category}`}
+    onPress={() => setSection(category)}
+  />
+))}{section !== 'Lunch' && section !== 'Boka bord' && (
+  <Text style={styles.adminHeading}>
+    Redigerar: {section}
+  </Text>
+)} {section !== 'Lunch' && section !== 'Boka bord' &&
+  (fullMenu[section] || []).map((food, index) => (
+    <TextInput
+      key={`${section}-${index}`}
+      style={styles.field}
+      value={food[0]}
+      onChangeText={(text) => {
+        const newItems = [...fullMenu[section]];
+        newItems[index] = [text, food[1]];
+        updateFullMenu(section, newItems);
+      }}
+    />
+  ))
+}{section !== 'Lunch' && section !== 'Boka bord' && (
+  <AppButton
+    title="Spara ändringar"
+    onPress={() => Alert.alert('Klart', `${section} är uppdaterad.`)}
+  />
+)}  <View style={styles.days}>
                 {Object.keys(
                   weeklyLunch
                 ).map((item) => (

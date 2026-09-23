@@ -194,8 +194,6 @@ export default function App() {
   const [adminEmail, setAdminEmail] =
     useState('');
 
-  const [adminPassword, setAdminPassword] =
-    useState('');
 
   const [ownerCode, setOwnerCode] = useState('');
 
@@ -421,50 +419,28 @@ export default function App() {
   }
 
   async function login() {
-    if (ownerCode.trim() !== OWNER_CODE) {
-      Alert.alert('Admin', 'Fel ägarkod.');
-      return;
-    }
-
-    if (
-      !adminEmail.trim() ||
-      !adminPassword
-    ) {
-      Alert.alert(
-        'Admin',
-        'Fyll i e-post och lösenord.'
-      );
-
-      return;
-    }
-
-    const { error } =
-      await supabase.auth.signInWithPassword({
-        email: adminEmail.trim(),
-        password: adminPassword,
-      });
-
-    if (error) {
-      Alert.alert(
-        'Admin',
-        'Fel e-post eller lösenord.'
-      );
-
-      return;
-    }
-
-    setAdmin(true);
-    setAdminPassword('');
-    setOwnerCode('');
+  if (ownerCode.trim() !== OWNER_CODE) {
+    Alert.alert('Admin', 'Fel ägarkod.');
+    return;
   }
 
-  async function logout() {
-    await supabase.auth.signOut();
-
-    setAdmin(false);
-    setOrders([]);
-    setBookings([]);
+  if (!adminEmail.trim()) {
+    Alert.alert('Admin', 'Fyll i e-post.');
+    return;
   }
+
+  setAdmin(true);
+}
+
+async function logout() {
+  await supabase.auth.signOut();
+
+  setAdmin(false);
+  setOrders([]);
+  setBookings([]);
+}
+
+
 
   async function loadOrders() {
     const { data, error } =
@@ -885,19 +861,36 @@ export default function App() {
               )}
             </View>
 
-            {weeklyLunch[day].map(
+          {weeklyLunch[day].map(
               (name, index) => (
                 <Food
                   key={`${day}-${name}`}
                   number={index + 1}
                   name={name}
                   price={lunchPrice}
-                  onAdd={() =>
-                    addToCart(
-                      name,
-                      lunchPrice
-                    )
-                  }
+onAdd={() => {
+  const days = [
+    'Söndag',
+    'Måndag',
+    'Tisdag',
+    'Onsdag',
+    'Torsdag',
+    'Fredag',
+    'Lördag',
+  ];
+
+  const today = days[new Date().getDay()];
+
+  if (day !== today) {
+    Alert.alert(
+      'Veckans meny',
+      `Du kan bara beställa ${today}s meny idag.`
+    );
+    return;
+  }
+
+  addToCart(name, lunchPrice);
+}}
                 />
               )
             )}
@@ -1073,15 +1066,7 @@ export default function App() {
                 placeholder="E-post"
               />
 
-              <TextInput
-                style={styles.field}
-                secureTextEntry
-                value={adminPassword}
-                onChangeText={
-                  setAdminPassword
-                }
-                placeholder="Lösenord"
-              />
+        
 
               <AppButton
                 title="Logga in"

@@ -998,7 +998,8 @@ if (day !== today && day !== tomorrow) {
             value={bookingTime ? new Date(`2000-01-01T${bookingTime}:00`) : new Date()}
                 mode="time"
                 minuteInterval={5}
-                onChange={(_, selected) => {
+  
+onChange={(_, selected) => {
                   setShowBookingTimePicker(Platform.OS === 'ios');
                   if (selected) setBookingTime(formatTime(selected));
                 }}

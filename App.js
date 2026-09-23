@@ -879,15 +879,17 @@ onAdd={() => {
     'Lördag',
   ];
 
-  const today = days[new Date().getDay()];
+const todayIndex = new Date().getDay();
+const today = days[todayIndex];
+const tomorrow = days[(todayIndex + 1) % 7];
 
-  if (day !== today) {
-    Alert.alert(
-      'Veckans meny',
-      `Du kan bara beställa ${today}s meny idag.`
-    );
-    return;
-  }
+if (day !== today && day !== tomorrow) {
+  Alert.alert(
+    'Veckans meny',
+    `Du kan bara beställa ${today}s eller ${tomorrow}s meny.`
+  );
+  return;
+}
 
   addToCart(name, lunchPrice);
 }}

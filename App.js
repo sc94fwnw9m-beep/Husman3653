@@ -51,40 +51,45 @@ const DEFAULT_LUNCH = {
 };
 
 const MENU = {
-  Pasta: [
-    ['Penne Paradiso', 139],
-    ['Con Pollo', 139],
-    ['Carbonara', 139],
-    ['Delizie', 139],
-    ['Cannelloni', 139],
-  ],
+Pasta: [
+  ['Penne Paradiso med strimlad biff, champinjoner, vitlök, gräddsås, ost', 139],
+  ['Con Pollo med strimlad kycklingfilé, krämig chilisås, ost', 139],
+  ['Spaghetti Carbonara med gräddsås, svartpeppar, äggula, ost', 139],
+],
+ 
+ Hamburgare: [
+  ['Hemlagad högrevsburgare med pommes, bearnaisesås', 139],
+  ['Chili cheese burger med pommes, bearnaisesås', 139],
+  ['Texas BBQ Burger med bacon, pommes, bearnaisesås', 139],
+  ['Smash burger med pommes, bearnaisesås', 139],
+],
+Tips: [
+  ['Falukorv med stekt potatis, stekt ägg', 139],
+  ['Hälsotallrik med kycklingfilé, keso, avokado, sweet chili', 139],
+],
+ Pizza: [
+  ['Hawaii med skinka, ananas, ost, tomatsås', 139],
+  ['Pepparoni med salami, ost, tomatsås', 139],
+  ['Kebabpizza med kebabkött, feferoni, ost', 139],
+  ['Kycklingpizza med curry, ananas, ost, tomatsås', 139],
+  ['Calzone med skinka, ost, tomatsås', 139],
+],
 
-  Hamburgare: [
-    ['Hemlagad högrevsburgare', 139],
-    ['Chili Cheese Burger', 139],
-    ['Texas BBQ Burger', 139],
-  ],
-
-  Pizza: [
-    ['Kycklingpizza', 139],
-    ['Calzone', 139],
-  ],
-
-  Kebab: [
-    ['Kebabtallrik', 139],
-    ['Kebabrulle', 139],
-  ],
-
-  Sallader: [
-    ['Kycklingsallad', 139],
-    ['Tonfisksallad', 139],
-    ['Caesarsallad', 139],
-  ],
+ Kebab: [
+  ['Kebabtallrik med pommes, tomatsås, vitlökssås', 139],
+  ['Kebab med bröd, sallad, tomatsås, vitlökssås', 139],
+  ['Kebabrulle med sallad, tomatsås, vitlökssås', 139],
+],
+Sallader: [
+  ['Kycklingsallad med grillad kycklingfilé, avokado', 139],
+  ['Tonfisksallad med keso, ägg, avokado, ruccola', 139],
+  ['Caesarsallad med grillad kycklingfilé, ost, krutonger', 139],
+],
 
   'Veganska maträtter': [
-    ['Vegoburgare', 139],
-    ['Vegoschnitzel', 139],
-  ],
+  ['Krispig vegoburgare med cheddar, vitlöksmajonnäs, pommes', 139],
+  ['Vegoschnitzel med pommes, dipp med sweet chili, BBQ-sås', 139],
+],
 
   Frukost: [
     ['Kokt ägg', 10],
@@ -111,6 +116,7 @@ const CATEGORIES = [
   'Lunch',
   'Pasta',
   'Hamburgare',
+  'Tips',
   'Pizza',
   'Kebab',
   'Sallader',
@@ -146,7 +152,7 @@ export default function App() {
 
   const [weeklyLunch, setWeeklyLunch] =
     useState(DEFAULT_LUNCH);
-
+const [fullMenu, setFullMenu] = useState(MENU);
   const [orderType, setOrderType] =
     useState('Äta här');
 

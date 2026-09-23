@@ -690,22 +690,18 @@ function updateFullMenu(category, newItems) {
             Tid 🕐
           </Text>
 
-          <TouchableOpacity style={styles.pickerButton} onPress={() => setShowOrderTimePicker(true)}>
-            <Text style={orderTime ? styles.pickerValue : styles.pickerPlaceholder}>
-              {orderTime || 'Välj tid'}
-            </Text>
-          </TouchableOpacity>
-          {showOrderTimePicker && (
-            <DateTimePicker
-              value={new Date()}
-              mode="time"
-              minuteInterval={5}
-              onChange={(_, selected) => {
-                setShowOrderTimePicker(Platform.OS === 'ios');
-                if (selected) setOrderTime(formatTime(selected));
-              }}
-            />
-          )}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+  {['08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30','14:00'].map((time) => (
+    <TouchableOpacity
+      key={time}
+      style={styles.pickerButton}
+      onPress={() => setOrderTime(time)}
+    >
+      <Text>{time}</Text>
+    </TouchableOpacity>
+  ))}
+</View>  
+           
 
           <Text style={styles.label}>
             Meddelande till restaurangen

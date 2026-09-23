@@ -197,6 +197,8 @@ const [fullMenu, setFullMenu] = useState(MENU);
   const [admin, setAdmin] =
     useState(false);
 
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+
   const [adminEmail, setAdminEmail] =
     useState('');
 
@@ -442,6 +444,7 @@ async function logout() {
   await supabase.auth.signOut();
 
   setAdmin(false);
+  setShowAdminLogin(false);
   setOrders([]);
   setBookings([]);
 }
@@ -568,7 +571,7 @@ function updateFullMenu(category, newItems) {
             styles.content
           }
         >
-          <Header />
+          <Header onAdminOpen={() => setShowAdminLogin(true)} />
 
           <Text style={styles.heading}>
             Din beställning
@@ -749,7 +752,7 @@ function updateFullMenu(category, newItems) {
           styles.content
         }
       >
-        <Header />
+        <Header onAdminOpen={() => setShowAdminLogin(true)} />
 
         <View style={styles.hero}>
           <Image source={{ uri: FOOD_IMAGES.Lunch }} style={styles.heroImage} />
@@ -906,7 +909,7 @@ if (day !== today && day !== tomorrow) {
           </>
         )}
 
-        {MENU[section] && (
+        {fullMenu[section] && (
           <>
             <Text style={styles.heading}>
               {section}
@@ -916,7 +919,7 @@ if (day !== today && day !== tomorrow) {
               <Image source={{ uri: FOOD_IMAGES[section] }} style={styles.sectionImage} />
             )}
 
-            {MENU[section].map(
+          {fullMenu[section].map(
               ([name, price]) => (
                 <Food
                   key={name}
@@ -984,23 +987,17 @@ if (day !== today && day !== tomorrow) {
               Tid 🕐
             </Text>
 
-            <TouchableOpacity style={styles.pickerButton} onPress={() => setShowBookingTimePicker(true)}>
-              <Text style={bookingTime ? styles.pickerValue : styles.pickerPlaceholder}>
-                {bookingTime || 'Välj tid'}
-              </Text>
-            </TouchableOpacity>
-            {showBookingTimePicker && (
-              <DateTimePicker
-            value={bookingTime ? new Date(`2000-01-01T${bookingTime}:00`) : new Date()}
-                mode="time"
-                minuteInterval={5}
-  
-onChange={(_, selected) => {
-                  setShowBookingTimePicker(Platform.OS === 'ios');
-                  if (selected) setBookingTime(formatTime(selected));
-                }}
-              />
-            )}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {['08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30','14:00'].map((time) => (
+                <TouchableOpacity
+                  key={time}
+                  style={styles.pickerButton}
+                  onPress={() => setBookingTime(time)}
+                >
+                  <Text>{time}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
             <Text style={styles.label}>
               Antal personer
@@ -1048,6 +1045,7 @@ onChange={(_, selected) => {
           }
         />
 
+        {(showAdminLogin || admin) && (
         <View style={styles.adminBox}>
           <Text style={styles.adminTitle}>
             Restaurang / Admin
@@ -1336,16 +1334,17 @@ onChange={(_, selected) => {
             </>
           )}
         </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function Header() {
+function Header({ onAdminOpen }) {
   return (
     <View style={styles.header}>
       <Image source={require('./assets/icon.png')} style={styles.logo} />
-      <Text style={styles.brand}>
+      <Text style={styles.brand} onLongPress={onAdminOpen}>
         Husman Lunchrestaurang
       </Text>
 
@@ -1814,3 +1813,5 @@ const styles = StyleSheet.create({
     color: '#102b49',
   },
 });           
+
+              

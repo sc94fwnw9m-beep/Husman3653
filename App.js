@@ -128,7 +128,7 @@ const CATEGORIES = [
 ];
 
 const FOOD_IMAGES = {
-  Lunch: 'https://images.unsplash.com/photo-1754988015255-483a68ed3e5b?auto=format&fit=crop&w=1200&q=82',
+  Lunch: 'https://images.openai.com/static-rsc-4/Ge8HQDgbjswNeqFO9paYGYcAlsMvFjax_G5Ep-75fWiBghCT0q2TwArH1Gjuu-EIIELhLLThS-UqJDYGQY2JVA85TdmpLh6MQgf_oU24vGA4POHuuTdbFBAMAX_9cH7jv6z4mCwWuw2nElFPYfPbkE5_Ybrnxsj6oIPHr3MNIHuEPazA6Cu87ZrXnN-rYPh4?purpose=fullsize',
   Pasta: 'https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=900&q=82',
   Hamburgare: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=900&q=82',
   Pizza: 'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&w=900&q=82',
@@ -733,13 +733,18 @@ function updateFullMenu(category, newItems) {
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
   {['08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30','14:00'].map((time) => (
-    <TouchableOpacity
-      key={time}
-      style={styles.pickerButton}
-      onPress={() => setOrderTime(time)}
-    >
-      <Text>{time}</Text>
-    </TouchableOpacity>
+   <TouchableOpacity
+  key={time}
+  style={[
+    styles.pickerButton,
+    orderTime === time && styles.timeButtonActive,
+  ]}
+  onPress={() => setOrderTime(time)}
+>
+  <Text style={orderTime === time ? styles.timeButtonTextActive : styles.pickerValue}>
+    {time}
+  </Text>
+</TouchableOpacity>
   ))}
 </View>  
            
@@ -815,39 +820,31 @@ function updateFullMenu(category, newItems) {
           </Text>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={
-            false
-          }
-          style={styles.categoryScroll}
-        >
-          {CATEGORIES.map(
-            (category) => (
-              <TouchableOpacity
-                key={category}
-                onPress={() =>
-                  setSection(category)
-                }
-                style={[
-                  styles.tab,
-                  section === category &&
-                    styles.tabActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    section === category &&
-                      styles.tabTextActive,
-                  ]}
-                >
-                  {category}
-                </Text>
-              </TouchableOpacity>
-            )
-          )}
-        </ScrollView>
+        <View style={{
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  marginBottom: 12,
+}}>
+  {CATEGORIES.map((category) => (
+    <TouchableOpacity
+      key={category}
+      onPress={() => setSection(category)}
+      style={[
+        styles.tab,
+        section === category && styles.tabActive,
+      ]}
+    >
+      <Text
+        style={[
+          styles.tabText,
+          section === category && styles.tabTextActive,
+        ]}
+      >
+        {category}
+      </Text>
+    </TouchableOpacity>
+  ))}
+</View>
 
         {section === 'Lunch' && (
           <>

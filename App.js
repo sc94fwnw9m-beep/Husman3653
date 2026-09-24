@@ -820,11 +820,7 @@ function updateFullMenu(category, newItems) {
           </Text>
         </View>
 
-        <View style={{
-  flexDirection: 'row',
-  flexWrap: 'wrap',
-  marginBottom: 12,
-}}>
+
 <View style={{
   flexDirection: 'row',
   flexWrap: 'wrap',
@@ -888,9 +884,7 @@ function updateFullMenu(category, newItems) {
                     setDay(item)
                   }
                   style={[
-                    styles.day,
-                    day === item &&
-                      styles.dayActive,
+                   
                   ]}
                 >
                   <Text

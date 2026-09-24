@@ -139,7 +139,7 @@ const FOOD_IMAGES = {
   Frukost: 'https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?auto=format&fit=crop&w=900&q=82',
   'Frysta matlådor': 'https://images.unsplash.com/photo-1543353071-087092ec393a?auto=format&fit=crop&w=900&q=82',
 Tips: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=900&q=82',
-
+'Catering & Festlokal': require('./assets/IMG_7712.png'),
   'Boka bord': 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=900&q=82',
 };
 const formatDate = (date) => {
@@ -842,7 +842,7 @@ function updateFullMenu(category, newItems) {
       }}
     >
       <Image
-        source={{ uri: FOOD_IMAGES[category] }}
+        source={typeof FOOD_IMAGES[category] === 'string' ? { uri: FOOD_IMAGES[category] } : FOOD_IMAGES[category]}
         style={{
           width: '100%',
           height: 95,
@@ -990,8 +990,88 @@ onAdd={() => {
             )}
           </>
         )}
+{section === 'Catering & Festlokal' && (
+  <>
+    <Text style={styles.heading}>Catering & Festlokal</Text>
 
-        {section === 'Boka bord' && (
+    <Text style={styles.infoText}>
+      Planerar du fest, möte eller catering? Skicka en bokningsförfrågan så kontaktar vi dig.
+    </Text>
+
+    <Text style={styles.label}>Namn</Text>
+    <TextInput
+      style={styles.field}
+      value={bookingName}
+      onChangeText={setBookingName}
+      placeholder="Ditt namn"
+    />
+
+    <Text style={styles.label}>Telefonnummer</Text>
+    <TextInput
+      style={styles.field}
+      value={bookingPhone}
+      onChangeText={setBookingPhone}
+      placeholder="T.ex. 070 123 45 67"
+      keyboardType="phone-pad"
+    />
+
+    <Text style={styles.label}>Datum 📅</Text>
+    <TouchableOpacity
+      style={styles.pickerButton}
+      onPress={() => setShowBookingDatePicker(true)}
+    >
+      <Text style={bookingDate ? styles.pickerValue : styles.pickerPlaceholder}>
+        {bookingDate || 'Välj datum'}
+      </Text>
+    </TouchableOpacity>
+
+    {showBookingDatePicker && (
+      <DateTimePicker
+        value={bookingDate ? new Date(`${bookingDate}T12:00:00`) : new Date()}
+        mode="date"
+        minimumDate={new Date()}
+        onChange={(_, selected) => {
+          setShowBookingDatePicker(false);
+          if (selected) setBookingDate(formatDate(selected));
+        }}
+      />
+    )}
+
+    <Text style={styles.label}>Tid 🕐</Text>
+    <TextInput
+      style={styles.field}
+      value={bookingTime}
+      onChangeText={setBookingTime}
+      placeholder="T.ex. 18:00"
+    />
+
+    <Text style={styles.label}>Antal personer</Text>
+    <TextInput
+      style={styles.field}
+      value={bookingGuests}
+      onChangeText={setBookingGuests}
+      keyboardType="number-pad"
+      placeholder="Antal personer"
+    />
+
+<Text style={styles.label}>Meddelande</Text>
+<TextInput
+  style={styles.messageInput}
+  multiline
+  value={bookingMessage}
+  onChangeText={setBookingMessage}
+  placeholder="Berätta om catering eller festen..."
+/>
+
+<AppButton
+  title="Skicka bokningsförfrågan"
+  onPress={bookTable}
+/>
+</>
+)}
+
+{section === 'Boka bord' && (
+         
           <>
             <Text style={styles.heading}>
               Boka bord

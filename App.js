@@ -825,23 +825,49 @@ function updateFullMenu(category, newItems) {
   flexWrap: 'wrap',
   marginBottom: 12,
 }}>
+<View style={{
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  justifyContent: 'space-between',
+  marginBottom: 12,
+}}>
   {CATEGORIES.map((category) => (
     <TouchableOpacity
       key={category}
       onPress={() => setSection(category)}
-      style={[
-        styles.tab,
-        section === category && styles.tabActive,
-      ]}
+      style={{
+        width: '32%',
+        marginBottom: 12,
+        borderRadius: 14,
+        overflow: 'hidden',
+        backgroundColor: '#0755ad',
+      }}
     >
-      <Text
-        style={[
-          styles.tabText,
-          section === category && styles.tabTextActive,
-        ]}
-      >
-        {category}
-      </Text>
+      <Image
+        source={{ uri: FOOD_IMAGES[category] }}
+        style={{
+          width: '100%',
+          height: 95,
+        }}
+        resizeMode="cover"
+      />
+
+      <View style={{
+        backgroundColor: '#0755ad',
+        minHeight: 48,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 4,
+      }}>
+        <Text style={{
+          color: '#ffffff',
+          fontSize: 16,
+          fontWeight: '800',
+          textAlign: 'center',
+        }}>
+          {category}
+        </Text>
+      </View>
     </TouchableOpacity>
   ))}
 </View>

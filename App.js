@@ -254,10 +254,10 @@ const [fullMenu, setFullMenu] = useState(MENU);
     breakfastNames.has(item.name)
   );
 
-  useEffect(() => {
-    loadWeeklyMenu();
+   useEffect(() => {
+      loadWeeklyMenu();
+    loadFullMenu();
   }, []);
-
   useEffect(() => {
     if (admin) {
       loadOrders();
@@ -277,8 +277,38 @@ const [fullMenu, setFullMenu] = useState(MENU);
       }), {});
       setWeeklyLunch((old) => ({ ...old, ...savedMenu }));
     }
+  
+async function loadFullMenu() {
+  const { data, error } = await supabase
+    .from('app_menu')
+    .select('section,items');
+
+  if (!error && data?.length) {
+    const savedMenu = data.reduce((result, row) => ({
+      ...result,
+      [row.section]: Array.isArray(row.items) ? row.items : [],
+    }), {});
+
+    setFullMenu((old) => ({ ...old, ...savedMenu }));
+  }
+}
+ async function saveFullMenu(section) {
+  const items = fullMenu[section] || [];
+
+  const { error } = await supabase
+    .from('app_menu')
+    .upsert(
+      { section: section, items: items },
+      { onConflict: 'section' }
+    );
+
+  if (error) {
+    Alert.alert('Fel', 'Kunde inte spara ändringarna.');
+    return;
   }
 
+  Alert.alert('Klart', `${section} är uppdaterad.`);
+}  
   function addToCart(name, price) {
     setCart((old) => {
       const found = old.find(
@@ -1411,7 +1441,7 @@ onAdd={() => {
 }{section !== 'Lunch' && section !== 'Boka bord' && (
   <AppButton
     title="Spara ändringar"
-    onPress={() => Alert.alert('Klart', `${section} är uppdaterad.`)}
+    onPress={() => saveFullMenu(section)}
   />
 )}  <View style={styles.days}>
                 {Object.keys(

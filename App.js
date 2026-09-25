@@ -889,7 +889,8 @@ function updateFullMenu(category, newItems) {
                     setDay(item)
                   }
                   style={[
-                   
+                 styles.day,
+day === item && styles.dayActive,  
                   ]}
                 >
                   <Text
@@ -1496,7 +1497,7 @@ onAdd={() => {
 
 function Header({ onAdminOpen }) {
   return (
-    <Pressable style={styles.header} onLongPress={onAdminOpen} delayLongPress={2000}>
+    <Pressable style={styles.header} onPress={onAdminOpen}>
       <Image source={require('./assets/icon.png')} style={styles.logo} />
       <Text style={styles.brand}>
         Husman Lunchrestaurang

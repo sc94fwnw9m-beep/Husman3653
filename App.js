@@ -277,7 +277,7 @@ const [fullMenu, setFullMenu] = useState(MENU);
       }), {});
       setWeeklyLunch((old) => ({ ...old, ...savedMenu }));
     }
-  
+  }
 async function loadFullMenu() {
   const { data, error } = await supabase
     .from('app_menu')

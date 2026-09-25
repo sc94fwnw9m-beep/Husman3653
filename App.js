@@ -1,8 +1,9 @@
-  import React, { useEffect, useMemo, useState } from 'react';
+   import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Image,
   Platform,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -143,6 +144,7 @@ Tips: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit
   'Boka bord': 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=900&q=82',
 };
 const formatDate = (date) => {
+  const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
@@ -211,6 +213,7 @@ const [fullMenu, setFullMenu] = useState(MENU);
 
 
   const [ownerCode, setOwnerCode] = useState('');
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
 
   const [orders, setOrders] =
     useState([]);
@@ -584,7 +587,7 @@ function updateFullMenu(category, newItems) {
             styles.content
           }
         >
-          <Header />
+          <Header onAdminOpen={() => setShowAdminLogin(true)} />
 
           <Text style={styles.heading}>
             Din beställning
@@ -797,7 +800,7 @@ function updateFullMenu(category, newItems) {
           styles.content
         }
       >
-        <Header />
+        <Header onAdminOpen={() => setShowAdminLogin(true)} />
 
         <View style={styles.hero}>
           <Image source={{ uri: FOOD_IMAGES.Lunch }} style={styles.heroImage} />
@@ -845,7 +848,7 @@ function updateFullMenu(category, newItems) {
         source={typeof FOOD_IMAGES[category] === 'string' ? { uri: FOOD_IMAGES[category] } : FOOD_IMAGES[category]}
         style={{
           width: '100%',
-          height: 95,
+          height: 68,
         }}
         resizeMode="cover"
       />
@@ -963,7 +966,7 @@ onAdd={() => {
           </>
         )}
 
-        {MENU[section] && (
+        {fullMenu[section] && (
           <>
             <Text style={styles.heading}>
               {section}
@@ -973,7 +976,7 @@ onAdd={() => {
               <Image source={{ uri: FOOD_IMAGES[section] }} style={styles.sectionImage} />
             )}
 
-            {MENU[section].map(
+            {fullMenu[section].map(
               ([name, price]) => (
                 <Food
                   key={name}
@@ -988,7 +991,7 @@ onAdd={() => {
                 />
               )
             )}
-          </>
+      </>
         )}
 {section === 'Catering & Festlokal' && (
   <>
@@ -1184,6 +1187,7 @@ onAdd={() => {
           }
         />
 
+        {(showAdminLogin || admin) && (
         <View style={styles.adminBox}>
           <Text style={styles.adminTitle}>
             Restaurang / Admin
@@ -1380,16 +1384,28 @@ onAdd={() => {
   </Text>
 )} {section !== 'Lunch' && section !== 'Boka bord' &&
   (fullMenu[section] || []).map((food, index) => (
-    <TextInput
-      key={`${section}-${index}`}
-      style={styles.field}
-      value={food[0]}
-      onChangeText={(text) => {
-        const newItems = [...fullMenu[section]];
-        newItems[index] = [text, food[1]];
-        updateFullMenu(section, newItems);
-      }}
-    />
+    <View key={`${section}-${index}`}>
+      <TextInput
+        style={styles.field}
+        value={food[0]}
+        onChangeText={(text) => {
+          const newItems = [...fullMenu[section]];
+          newItems[index] = [text, food[1]];
+          updateFullMenu(section, newItems);
+        }}
+      />
+      <TextInput
+        style={styles.field}
+        value={String(food[1])}
+        keyboardType="number-pad"
+        onChangeText={(text) => {
+          const newItems = [...fullMenu[section]];
+          newItems[index] = [food[0], Number(text) || 0];
+          updateFullMenu(section, newItems);
+        }}
+        placeholder="Pris"
+      />
+    </View>
   ))
 }{section !== 'Lunch' && section !== 'Boka bord' && (
   <AppButton
@@ -1472,14 +1488,15 @@ onAdd={() => {
             </>
           )}
         </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function Header() {
+function Header({ onAdminOpen }) {
   return (
-    <View style={styles.header}>
+    <Pressable style={styles.header} onLongPress={onAdminOpen} delayLongPress={2000}>
       <Image source={require('./assets/icon.png')} style={styles.logo} />
       <Text style={styles.brand}>
         Husman Lunchrestaurang
@@ -1488,7 +1505,7 @@ function Header() {
       <Text style={styles.open}>
         Måndag–fredag 08:00–14:00
       </Text>
-    </View>
+    </Pressable>
   );
 }
 
@@ -1579,7 +1596,7 @@ const styles = StyleSheet.create({
   },
 
   hero: {
-    height: 210,
+    height: 155,
     borderRadius: 20,
     overflow: 'hidden',
     marginBottom: 14,
@@ -1614,7 +1631,7 @@ const styles = StyleSheet.create({
 
   sectionImage: {
     width: '100%',
-    height: 175,
+    height: 120,
     borderRadius: 18,
     marginBottom: 13,
     backgroundColor: '#dbe9f5',
@@ -1960,8 +1977,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#102b49',
   },
-});           
-  
+});        
   
     
 

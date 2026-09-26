@@ -380,6 +380,7 @@ async function addNewDish() {
   setNewDishPrice('');
   Alert.alert('Klart', 'Maträtten är tillagd.');
 }
+
   function changeQty(id, amount) {
     setCart((old) =>
       old

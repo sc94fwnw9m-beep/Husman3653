@@ -1,0 +1,11 @@
+name: Submit iOS build 61 to TestFlight
+on:
+  push:
+    branches: [main]
+jobs:
+  submit_ios:
+    name: Upload existing iOS build
+    type: submit
+    params:
+      build_id: b4836bfc-5cce-49c8-8deb-cda2fdff2a2f
+      profile: production

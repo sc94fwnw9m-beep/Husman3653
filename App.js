@@ -1077,9 +1077,15 @@ onAdd={() => {
             </Text>
 
             {!!FOOD_IMAGES[section] && (
-              <Image source={{ uri: FOOD_IMAGES[section] }} style={styles.sectionImage} />
-            )}
-
+  <Image
+    source={
+      typeof FOOD_IMAGES[section] === 'string'
+        ? { uri: FOOD_IMAGES[section] }
+        : FOOD_IMAGES[section]
+    }
+    style={styles.sectionImage}
+  />
+)}
             {fullMenu[section].map(
               ([name, price]) => (
                 <Food

@@ -333,7 +333,47 @@ async function loadFullMenu() {
 
   Alert.alert('Klart', `${section} är uppdaterad.`);
 }
+async function addNewDish() {
+  const name = newDishName.trim();
+  const price = Number(newDishPrice);
 
+  if (!name || !price) {
+    Alert.alert('Ny maträtt', 'Fyll i maträtt och pris.');
+    return;
+  }
+
+  if (!adminCategory) {
+    Alert.alert('Ny maträtt', 'Välj kategori först.');
+    return;
+  }
+
+  const newItems = [
+    ...(fullMenu[adminCategory] || []),
+    [name, price],
+  ];
+
+  const { error } = await supabase
+    .from('app_menu')
+    .upsert(
+      { section: adminCategory, items: newItems },
+      { onConflict: 'section' }
+    );
+
+  if (error) {
+    console.log(error);
+    Alert.alert('Fel', 'Kunde inte lägga till maträtten.');
+    return;
+  }
+
+  setFullMenu((old) => ({
+    ...old,
+    [adminCategory]: newItems,
+  }));
+
+  setNewDishName('');
+  setNewDishPrice('');
+  Alert.alert('Klart', 'Maträtten är tillagd.');
+}
 
 
  function addToCart(name, price, category) {

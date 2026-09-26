@@ -231,7 +231,9 @@ const [fullMenu, setFullMenu] = useState(MENU);
 
   const [editDish3, setEditDish3] =
     useState('');
-
+const [newDishName, setNewDishName] = useState('');
+const [newDishPrice, setNewDishPrice] = useState('139');
+const [adminMenuMode, setAdminMenuMode] = useState('edit');
   const total = useMemo(
     () =>
       cart.reduce(
@@ -309,37 +311,75 @@ async function loadFullMenu() {
 
   Alert.alert('Klart', `${section} är uppdaterad.`);
 }  
-  function addToCart(name, price) {
-    setCart((old) => {
-      const found = old.find(
-        (item) =>
-          item.name === name &&
-          item.price === price
+ function addToCart(name, price, category) {
+  setCart((old) => {
+    const found = old.find(
+      (item) =>
+        item.name === name &&
+        item.price === price &&
+        item.category === category
+    );
+
+    if (found) {
+      return old.map((item) =>
+        item.id === found.id
+          ? { ...item, qty: item.qty + 1 }
+          : item
       );
+    }
 
-      if (found) {
-        return old.map((item) =>
-          item.id === found.id
-            ? {
-                ...item,
-                qty: item.qty + 1,
-              }
-            : item
-        );
-      }
+    return [
+      ...old,
+      {
+        id: Date.now() + Math.random(),
+        name,
+        price,
+        category,
+        qty: 1,
+      },
+    ];
+  });
+}
+async function addNewDish() {
+  const name = newDishName.trim();
+  const price = Number(newDishPrice);
 
-      return [
-        ...old,
-        {
-          id: Date.now() + Math.random(),
-          name,
-          price,
-          qty: 1,
-        },
-      ];
-    });
+  if (!name || !price) {
+    Alert.alert('Ny maträtt', 'Fyll i maträtt och pris.');
+    return;
   }
 
+  if (!adminCategory) {
+    Alert.alert('Ny maträtt', 'Välj kategori först.');
+    return;
+  }
+
+  const newItems = [
+    ...(fullMenu[adminCategory] || []),
+    [name, price],
+  ];
+
+  setFullMenu((old) => ({
+    ...old,
+    [adminCategory]: newItems,
+  }));
+
+  const { error } = await supabase
+    .from('app_menu')
+    .upsert(
+      { section: adminCategory, items: newItems },
+      { onConflict: 'section' }
+    );
+
+  if (error) {
+    Alert.alert('Fel', 'Kunde inte lägga till maträtten.');
+    return;
+  }
+
+  setNewDishName('');
+  setNewDishPrice('');
+  Alert.alert('Klart', 'Maträtten är tillagd.');
+}
   function changeQty(id, amount) {
     setCart((old) =>
       old
@@ -384,7 +424,7 @@ async function loadFullMenu() {
       .from('orders')
       .insert({
         items: cart,
-        message: `Kund: ${customerName.trim()}\nTelefon: ${customerPhone.trim()}${message.trim() ? `\nMeddelande: ${message.trim()}` : ''}`,
+        message: `Kund: ${customerName.trim()}\nTelefon: ${customerPhone.trim()}\nTyp: ${orderType}${message.trim() ? `\nMeddelande: ${message.trim()}` : ''}`,
         total: total,
         status: 'Ny',
 
@@ -607,6 +647,46 @@ function updateFullMenu(category, newItems) {
     [category]: newItems,
   }));
 }
+   async function addNewDish() {
+  if (!newDishName.trim()) {
+    Alert.alert('Maträtt', 'Skriv maträttens namn.');
+    return;
+  }
+
+  const price = Number(newDishPrice);
+
+  if (!price || price <= 0) {
+    Alert.alert('Maträtt', 'Skriv ett giltigt pris.');
+    return;
+  }
+
+  const newItems = [
+    ...(fullMenu[section] || []),
+    [newDishName.trim(), price],
+  ];
+
+  setFullMenu((old) => ({
+    ...old,
+    [section]: newItems,
+  }));
+
+  const { error } = await supabase
+    .from('app_menu')
+    .upsert(
+      { section: section, items: newItems },
+      { onConflict: 'section' }
+    );
+
+  if (error) {
+    Alert.alert('Fel', 'Maträtten kunde inte sparas.');
+    return;
+  }
+
+  setNewDishName('');
+  setNewDishPrice('139');
+
+  Alert.alert('Klart', 'Den nya maträtten är tillagd.');
+}
     if (showCart) {
     return (
       <SafeAreaView style={styles.page}>
@@ -695,7 +775,7 @@ function updateFullMenu(category, newItems) {
             Totalt: {total} kr
           </Text>
 
-          {!cartHasBreakfast && (
+          {cart.some(item => !['Frukost', 'Frysta matlådor'].includes(item.category)) && (
             <>
               <Text style={styles.label}>Hur vill du ha maten?</Text>
               <View style={styles.types}>
@@ -989,7 +1069,7 @@ onAdd={() => {
     return;
   }
 
-  addToCart(name, lunchPrice);
+  addToCart(name, lunchPrice, 'Lunch');
 }}
                 />
               )
@@ -1013,12 +1093,13 @@ onAdd={() => {
                   key={name}
                   name={name}
                   price={price}
-                  onAdd={() =>
-                    addToCart(
-                      name,
-                      price
-                    )
-                  }
+ onAdd={() =>
+  addToCart(
+    name,
+    price,
+    section
+  )
+}
                 />
               )
             )}
@@ -1400,9 +1481,48 @@ onAdd={() => {
               >
 Ändra hela menyn
               </Text>
+                   <View style={{ flexDirection: 'row', gap: 8 }}>
+  <View style={{ flex: 1 }}>
+    <AppButton
+      title="✏️ Ändra maträtter"
+      onPress={() => setAdminMenuMode('edit')}
+    />
+  </View>
+
+  <View style={{ flex: 1 }}>
+    <AppButton
+      title="➕ Lägg till maträtt"
+      onPress={() => setAdminMenuMode('add')}
+    />
+  </View>
+</View>
+         {adminMenuMode === 'add' && (
+  <>
+    <TextInput
+      style={styles.field}
+      value={newDishName}
+      onChangeText={setNewDishName}
+      placeholder="Ny maträtt"
+    />
+
+    <TextInput
+      style={styles.field}
+      value={newDishPrice}
+      onChangeText={setNewDishPrice}
+      keyboardType="number-pad"
+      placeholder="Pris"
+    />
+
+    <AppButton
+      title="Spara ny maträtt"
+      onPress={addNewDish}
+    />
+  </>
+)}
 <Text style={styles.adminHeading}>
   Ändra övriga maträtter
 </Text>
+{adminMenuMode === 'edit' && (
            {CATEGORIES.filter((category) => category !== 'Lunch' && category !== 'Boka bord').map((category) => (
   <AppButton
     key={category}
@@ -1443,7 +1563,8 @@ onAdd={() => {
     title="Spara ändringar"
     onPress={() => saveFullMenu(section)}
   />
-)}  <View style={styles.days}>
+)}
+<View style={styles.days}>
                 {Object.keys(
                   weeklyLunch
                 ).map((item) => (
@@ -1510,7 +1631,7 @@ onAdd={() => {
                   saveMenuChanges
                 }
               />
-
+)}
               <AppButton
                 title="Logga ut"
                 outline

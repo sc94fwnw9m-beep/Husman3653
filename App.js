@@ -330,6 +330,9 @@ async function loadFullMenu() {
 
   Alert.alert('Klart', `${section} är uppdaterad.`);
 }
+
+
+
  function addToCart(name, price, category) {
   setCart((old) => {
     const found = old.find(

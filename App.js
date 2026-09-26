@@ -266,7 +266,26 @@ const [adminMenuMode, setAdminMenuMode] = useState('edit');
       loadBookings();
     }
   }, [admin]);
+useEffect(() => {
+  const channel = supabase
+    .channel('app-menu-realtime')
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'app_menu',
+      },
+      () => {
+        loadFullMenu();
+      }
+    )
+    .subscribe();
 
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, []);
   async function loadWeeklyMenu() {
     const { data, error } = await supabase
       .from('weekly_menu')
@@ -1525,13 +1544,20 @@ onAdd={() => {
   Ändra övriga maträtter
 </Text>
 {adminMenuMode === 'edit' && (
-           {CATEGORIES.filter((category) => category !== 'Lunch' && category !== 'Boka bord').map((category) => (
-  <AppButton
-    key={category}
-    title={`Ändra ${category}`}
-    onPress={() => setSection(category)}
-  />
-))}{section !== 'Lunch' && section !== 'Boka bord' && (
+  <>
+    {CATEGORIES
+      .filter((category) => category !== 'Lunch' && category !== 'Boka bord')
+      .map((category) => (
+        <AppButton
+          key={category}
+          title={`Ändra ${category}`}
+          onPress={() => setSection(category)}
+        />
+      ))}
+  </>
+)}
+
+{section !== 'Lunch' && section !== 'Boka bord' && (
   <Text style={styles.adminHeading}>
     Redigerar: {section}
   </Text>

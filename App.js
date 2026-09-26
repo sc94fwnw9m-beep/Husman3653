@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+   import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Image,
@@ -15,19 +15,14 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { createClient } from '@supabase/supabase-js';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import * as Notifications from 'expo-notifications';
 
-const supabaseUrl = 'https://qryynhzavlevuejpdtos.supabase.co';
+const supabaseUrl = 'https://ujmfvlktaxhefrqzkmdl.supabase.co';
 const supabaseKey =
- 'sb_publishable_-DLe2m1LORuyuro1OkXu0g_M739wwVV';
+  'sb_publishable_zcu1n20SXR7xlizKMHWHgw_I1jNK7JS';
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 const OWNER_CODE = '3653';
-const ORDER_TYPES = [
-  ['Äta här', 139],
-  ['Ta med', 129],
-  ['Endast matlåda', 119],
-];
+
 const DEFAULT_LUNCH = {
   Måndag: [
     'Grillad fläsknoisette med stekt potatis, champinjonsås',
@@ -58,48 +53,45 @@ const DEFAULT_LUNCH = {
 };
 
 const MENU = {
-  Pasta: [
-    ['Penne paradiso med strimlad biff, champinjoner, vitlök, gräddsås, ost', 139],
-    ['Con Pollo med strimlad kycklingfilé, krämig chilisås, ost', 139],
-    ['Spaghetti Carbonara med gräddsås, svart peppar, äggula, ost', 139],
-  ],
+Pasta: [
+  ['Penne paradiso med strimlad biff, champinjoner, vitlök, gräddsås, ost', 139],
+  ['Con Pollo med strimlad kycklingfilé, krämig chilisås, ost', 139],
+  ['Spaghetti Carbonara med gräddsås, svart peppar, äggula, ost', 139],
+],
+ 
+ Hamburgare: [
+  ['Hemlagad högrevsburgare med pommes, bearnaisesås', 139],
+  ['Chili cheese burger med pommes, bearnaisesås', 139],
+  ['Texas BBQ Burger med bacon, pommes, bearnaisesås', 139],
+  ['Smash burger med pommes, bearnaisesås', 139],
+],
+Tips: [
+  ['Falukorv med stekt potatis, stekt ägg', 139],
+  ['Hälsotallrik med kycklingfilé, keso, avokado, sweet chili', 139],
+],
+ Pizza: [
+  ['Hawaii med skinka, ananas, ost, tomatsås', 139],
+  ['Pepparoni med salami, ost, tomatsås', 139],
+  ['Kebabpizza med kebabkött, feferoni, ost', 139],
+  ['Kycklingpizza med curry, ananas, ost, tomatsås', 139],
+  ['Calzone med skinka, ost, tomatsås', 139],
+],
 
-  Hamburgare: [
-    ['Hemlagad högrevsburgare med pommes, bearnaisesås', 139],
-    ['Chili cheese burger med pommes, bearnaisesås', 139],
-    ['Texas BBQ Burger med bacon, pommes, bearnaisesås', 139],
-    ['Smash burger med pommes, bearnaisesås', 139],
-  ],
-
-  Tips: [
-    ['Falukorv med stekt potatis, stekt ägg', 139],
-    ['Hälsotallrik med kycklingfilé, keso, avokado, sweet chili', 139],
-  ],
-
-  Pizza: [
-    ['Hawaii med skinka, ananas, ost, tomatsås', 139],
-    ['Pepparoni med salami, ost, tomatsås', 139],
-    ['Kebabpizza med kebabkött, feferoni, ost', 139],
-    ['Kycklingpizza med curry, ananas, ost, tomatsås', 139],
-    ['Calzone med skinka, ost, tomatsås', 139],
-  ],
-
-  Kebab: [
-    ['Kebabtallrik med pommes, tomatsås, vitlökssås', 139],
-    ['Kebab med bröd, sallad, tomatsås, vitlökssås', 139],
-    ['Kebabrulle med sallad, tomatsås, vitlökssås', 139],
-  ],
-
-  Sallader: [
-    ['Kycklingsallad med grillad kycklingfilé, avokado', 139],
-    ['Tonfisksallad med keso, ägg, avokado, ruccola', 139],
-    ['Caesarsallad med grillad kycklingfilé, ost, krutonger', 139],
-  ],
+ Kebab: [
+  ['Kebabtallrik med pommes, tomatsås, vitlökssås', 139],
+  ['Kebab med bröd, sallad, tomatsås, vitlökssås', 139],
+  ['Kebabrulle med sallad, tomatsås, vitlökssås', 139],
+],
+Sallader: [
+  ['Kycklingsallad med grillad kycklingfilé, avokado', 139],
+  ['Tonfisksallad med keso, ägg, avokado, ruccola', 139],
+  ['Caesarsallad med grillad kycklingfilé, ost, krutonger', 139],
+],
 
   'Veganska maträtter': [
-    ['Krispig vegoburgare med cheddar, vitlöksmajonnäs, pommes', 139],
-    ['Vegoschnitzel med pommes, dipp med sweet chili, BBQ-sås', 139],
-  ],
+  ['Krispig vegoburgare med cheddar, vitlöksmajonnäs, pommes', 139],
+  ['Vegoschnitzel med pommes, dipp med sweet chili, BBQ-sås', 139],
+],
 
   Frukost: [
     ['Kokt ägg', 10],
@@ -116,7 +108,11 @@ const MENU = {
   ],
 };
 
-
+const ORDER_TYPES = [
+  ['Äta här', 139],
+  ['Ta med', 129],
+  ['Endast matlåda', 119],
+];
 
 const CATEGORIES = [
   'Lunch',
@@ -134,225 +130,141 @@ const CATEGORIES = [
 ];
 
 const FOOD_IMAGES = {
-  Lunch:
-    'https://images.openai.com/static-rsc-4/Ge8HQDgbjswNeqFO9paYGYcAlsMvFjax_G5Ep-75fWiBghCT0q2TwArH1Gjuu-EIIELhLLThS-UqJDYGQY2JVA85TdmpLh6MQgf_oU24vGA4POHuuTdbFBAMAX_9cH7jv6z4mCwWuw2nElFPYfPbkE5_Ybrnxsj6oIPHr3MNIHuEPazA6Cu87ZrXnN-rYPh4?purpose=fullsize',
-
-  Pasta:
-    'https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=900&q=82',
-
-  Hamburgare:
-    'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=900&q=82',
-
-  Pizza:
-    'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&w=900&q=82',
-
-  Kebab:
-    'https://images.unsplash.com/photo-1529006557810-274b9b2fc783?auto=format&fit=crop&w=900&q=82',
-
-  Sallader:
-    'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=900&q=82',
-
-  'Veganska maträtter':
-    'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=900&q=82',
-
-  Frukost:
-    'https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?auto=format&fit=crop&w=900&q=82',
-
-  'Frysta matlådor':
-    'https://images.unsplash.com/photo-1543353071-087092ec393a?auto=format&fit=crop&w=900&q=82',
-
-  Tips:
-    'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=900&q=82',
-
-  'Catering & Festlokal': require('./assets/IMG_7712.png'),
-
-  'Boka bord':
-    'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=900&q=82',
+  Lunch: 'https://images.openai.com/static-rsc-4/Ge8HQDgbjswNeqFO9paYGYcAlsMvFjax_G5Ep-75fWiBghCT0q2TwArH1Gjuu-EIIELhLLThS-UqJDYGQY2JVA85TdmpLh6MQgf_oU24vGA4POHuuTdbFBAMAX_9cH7jv6z4mCwWuw2nElFPYfPbkE5_Ybrnxsj6oIPHr3MNIHuEPazA6Cu87ZrXnN-rYPh4?purpose=fullsize',
+  Pasta: 'https://images.unsplash.com/photo-1473093295043-cdd812d0e601?auto=format&fit=crop&w=900&q=82',
+  Hamburgare: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=900&q=82',
+  Pizza: 'https://images.unsplash.com/photo-1574071318508-1cdbab80d002?auto=format&fit=crop&w=900&q=82',
+  Kebab: 'https://images.unsplash.com/photo-1529006557810-274b9b2fc783?auto=format&fit=crop&w=900&q=82',
+  Sallader: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=900&q=82',
+  'Veganska maträtter': 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=900&q=82',
+  Frukost: 'https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?auto=format&fit=crop&w=900&q=82',
+  'Frysta matlådor': 'https://images.unsplash.com/photo-1543353071-087092ec393a?auto=format&fit=crop&w=900&q=82',
+Tips: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=900&q=82',
+'Catering & Festlokal': require('./assets/IMG_7712.png'),
+  'Boka bord': 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=900&q=82',
 };
-
 const formatDate = (date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
+const formatTime = (date) => date.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
 
 export default function App() {
   const [section, setSection] = useState('Lunch');
-
   const [day, setDay] = useState(() => {
-    const days = [
-      'Söndag',
-      'Måndag',
-      'Tisdag',
-      'Onsdag',
-      'Torsdag',
-      'Fredag',
-      'Lördag',
-    ];
-
+    const days = ['Söndag', 'Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag'];
     const today = days[new Date().getDay()];
-
-    return [
-      'Måndag',
-      'Tisdag',
-      'Onsdag',
-      'Torsdag',
-      'Fredag',
-    ].includes(today)
+    return ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag'].includes(today)
       ? today
       : 'Måndag';
   });
 
-  const [weeklyLunch, setWeeklyLunch] = useState(DEFAULT_LUNCH);
-  const [fullMenu, setFullMenu] = useState(MENU);
-
-  const [orderType, setOrderType] = useState('Äta här');
+  const [weeklyLunch, setWeeklyLunch] =
+    useState(DEFAULT_LUNCH);
+const [fullMenu, setFullMenu] = useState(MENU);
+  const [orderType, setOrderType] =
+    useState('Äta här');
 
   const [cart, setCart] = useState([]);
-  const [showCart, setShowCart] = useState(false);
+  const [showCart, setShowCart] =
+    useState(false);
 
-  const [orderDate, setOrderDate] = useState('');
-  const [orderTime, setOrderTime] = useState('');
-  const [message, setMessage] = useState('');
+  // Kundens beställning
+  const [orderDate, setOrderDate] =
+    useState('');
+
+  const [orderTime, setOrderTime] =
+    useState('');
+
+  const [message, setMessage] =
+    useState('');
+
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [showOrderDatePicker, setShowOrderDatePicker] = useState(false);
+  const [showOrderTimePicker, setShowOrderTimePicker] = useState(false);
 
-  const [bookingDate, setBookingDate] = useState('');
-  const [bookingTime, setBookingTime] = useState('');
-  const [bookingGuests, setBookingGuests] = useState('2');
-  const [bookingMessage, setBookingMessage] = useState('');
+  // Boka bord
+  const [bookingDate, setBookingDate] =
+    useState('');
+
+  const [bookingTime, setBookingTime] =
+    useState('');
+
+  const [bookingGuests, setBookingGuests] =
+    useState('2');
+
+  const [bookingMessage, setBookingMessage] =
+    useState('');
+
   const [bookingName, setBookingName] = useState('');
   const [bookingPhone, setBookingPhone] = useState('');
   const [showBookingDatePicker, setShowBookingDatePicker] = useState(false);
+  const [showBookingTimePicker, setShowBookingTimePicker] = useState(false);
 
-  const [admin, setAdmin] = useState(false);
-  const [adminEmail, setAdminEmail] = useState('');
+  // Admin
+  const [admin, setAdmin] =
+    useState(false);
+
+  const [adminEmail, setAdminEmail] =
+    useState('');
+
+
   const [ownerCode, setOwnerCode] = useState('');
   const [showAdminLogin, setShowAdminLogin] = useState(false);
 
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders] =
+    useState([]);
   const [bookings, setBookings] = useState([]);
 
-  const [editDay, setEditDay] = useState('Måndag');
-  const [editDish1, setEditDish1] = useState('');
-  const [editDish2, setEditDish2] = useState('');
-  const [editDish3, setEditDish3] = useState('');
+  // Ändra lunchmeny
+  const [editDay, setEditDay] =
+    useState('Måndag');
 
-  const [newDishName, setNewDishName] = useState('');
-  const [newDishPrice, setNewDishPrice] = useState('');
-const [newDishCategory, setNewDishCategory] = useState('Pasta');
-  const lunchPrice =
-    ORDER_TYPES.find((item) => item[0] === orderType)?.[1] || 139;
+  const [editDish1, setEditDish1] =
+    useState('');
 
-  const breakfastNames = new Set(
-    (fullMenu.Frukost || []).map(([name]) => name)
-  );
+  const [editDish2, setEditDish2] =
+    useState('');
 
-  const frozenNames = new Set(
-    (fullMenu['Frysta matlådor'] || []).map(([name]) => name)
-  );
-
-  const usesFixedPrice = (item) =>
-    breakfastNames.has(item.name) ||
-    frozenNames.has(item.name);
-
-  const getCartPrice = (item) =>
-    usesFixedPrice(item)
-      ? item.price
-      : lunchPrice;
-
+  const [editDish3, setEditDish3] =
+    useState('');
+const [newDishName, setNewDishName] = useState('');
+const [newDishPrice, setNewDishPrice] = useState('139');
+const [adminMenuMode, setAdminMenuMode] = useState('edit');
   const total = useMemo(
     () =>
       cart.reduce(
         (sum, item) =>
-          sum + getCartPrice(item) * item.qty,
+          sum + item.price * item.qty,
         0
       ),
-[cart, lunchPrice, fullMenu, orderType]
+    [cart]
   );
 
-  const cartHasRegularFood = cart.some(
-    (item) => !usesFixedPrice(item)
+  const lunchPrice =
+    ORDER_TYPES.find(
+      (item) => item[0] === orderType
+    )?.[1] || 139;
+
+  const breakfastNames = new Set(
+    (fullMenu.Frukost || []).map(([name]) => name)
+  );
+  const cartHasBreakfast = cart.some((item) =>
+    breakfastNames.has(item.name)
   );
 
-  useEffect(() => {
-    loadWeeklyMenu();
+   useEffect(() => {
+      loadWeeklyMenu();
     loadFullMenu();
   }, []);
-
   useEffect(() => {
     if (admin) {
       loadOrders();
       loadBookings();
     }
-  }, [admin]);
-
-  useEffect(() => {
-    if (!admin) return;
-
-    let channel;
-
-    async function startOrderSound() {
-      try {
-        await Notifications.requestPermissionsAsync();
-
-        if (Platform.OS === 'android') {
-          await Notifications.setNotificationChannelAsync(
-            'orders',
-            {
-              name: 'Nya beställningar',
-              importance:
-                Notifications.AndroidImportance.MAX,
-              sound: 'default',
-            }
-          );
-        }
-      } catch (e) {
-        console.log('Notisbehörighet:', e);
-      }
-
-      channel = supabase
-        .channel('admin-new-orders')
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'orders',
-          },
-          async () => {
-            loadOrders();
-
-            try {
-              await Notifications.scheduleNotificationAsync({
-                content: {
-                  title: 'Ny beställning',
-                  body:
-                    'En ny beställning har kommit till restaurangen.',
-                  sound: 'default',
-                },
-                trigger: null,
-              });
-            } catch (e) {
-              console.log(
-                'Kunde inte spela beställningsljud:',
-                e
-              );
-            }
-          }
-        )
-        .subscribe();
-    }
-
-    startOrderSound();
-
-    return () => {
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
-    };
   }, [admin]);
 
   async function loadWeeklyMenu() {
@@ -361,106 +273,113 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
       .select('day,dishes');
 
     if (!error && data?.length) {
-      const savedMenu = data.reduce(
-        (result, row) => ({
-          ...result,
-          [row.day]: Array.isArray(row.dishes)
-            ? row.dishes
-            : [],
-        }),
-        {}
-      );
-
-      setWeeklyLunch((old) => ({
-        ...old,
-        ...savedMenu,
-      }));
+      const savedMenu = data.reduce((result, row) => ({
+        ...result,
+        [row.day]: Array.isArray(row.dishes) ? row.dishes : [],
+      }), {});
+      setWeeklyLunch((old) => ({ ...old, ...savedMenu }));
     }
   }
+async function loadFullMenu() {
+  const { data, error } = await supabase
+    .from('app_menu')
+    .select('section,items');
 
-  async function loadFullMenu() {
-    const { data, error } = await supabase
-      .from('app_menu')
-      .select('section,items');
+  if (!error && data?.length) {
+    const savedMenu = data.reduce((result, row) => ({
+      ...result,
+      [row.section]: Array.isArray(row.items) ? row.items : [],
+    }), {});
 
-    if (!error && data?.length) {
-      const savedMenu = data.reduce(
-        (result, row) => ({
-          ...result,
-          [row.section]: Array.isArray(row.items)
-            ? row.items
-            : [],
-        }),
-        {}
-      );
-
-      setFullMenu((old) => ({
-        ...old,
-        ...savedMenu,
-      }));
-    }
+    setFullMenu((old) => ({ ...old, ...savedMenu }));
   }
+}
+ async function saveFullMenu(section) {
+  const items = fullMenu[section] || [];
 
-  async function saveFullMenu(section) {
-    const items = fullMenu[section] || [];
-
-    const { error } = await supabase
-      .from('app_menu')
-      .upsert(
-        {
-          section,
-          items,
-        },
-        {
-          onConflict: 'section',
-        }
-      );
-
-    if (error) {
-      Alert.alert(
-        'Fel',
-        'Kunde inte spara ändringarna.'
-      );
-      return;
-    }
-
-    Alert.alert(
-      'Klart',
-      `${section} är uppdaterad för alla kunder.`
+  const { error } = await supabase
+    .from('app_menu')
+    .upsert(
+      { section: section, items: items },
+      { onConflict: 'section' }
     );
+
+  if (error) {
+    Alert.alert('Fel', 'Kunde inte spara ändringarna.');
+    return;
   }
 
-  function addToCart(name, price) {
-    setCart((old) => {
-      const found = old.find(
-        (item) =>
-          item.name === name &&
-          item.price === price
+  Alert.alert('Klart', `${section} är uppdaterad.`);
+}  
+ function addToCart(name, price, category) {
+  setCart((old) => {
+    const found = old.find(
+      (item) =>
+        item.name === name &&
+        item.price === price &&
+        item.category === category
+    );
+
+    if (found) {
+      return old.map((item) =>
+        item.id === found.id
+          ? { ...item, qty: item.qty + 1 }
+          : item
       );
+    }
 
-      if (found) {
-        return old.map((item) =>
-          item.id === found.id
-            ? {
-                ...item,
-                qty: item.qty + 1,
-              }
-            : item
-        );
-      }
+    return [
+      ...old,
+      {
+        id: Date.now() + Math.random(),
+        name,
+        price,
+        category,
+        qty: 1,
+      },
+    ];
+  });
+}
+async function addNewDish() {
+  const name = newDishName.trim();
+  const price = Number(newDishPrice);
 
-      return [
-        ...old,
-        {
-          id: Date.now() + Math.random(),
-          name,
-          price,
-          qty: 1,
-        },
-      ];
-    });
+  if (!name || !price) {
+    Alert.alert('Ny maträtt', 'Fyll i maträtt och pris.');
+    return;
   }
 
+  if (!adminCategory) {
+    Alert.alert('Ny maträtt', 'Välj kategori först.');
+    return;
+  }
+
+  const newItems = [
+    ...(fullMenu[adminCategory] || []),
+    [name, price],
+  ];
+
+  setFullMenu((old) => ({
+    ...old,
+    [adminCategory]: newItems,
+  }));
+
+  const { error } = await supabase
+    .from('app_menu')
+    .upsert(
+      { section: adminCategory, items: newItems },
+      { onConflict: 'section' }
+    );
+
+  if (error) {
+    Alert.alert('Fel', 'Kunde inte lägga till maträtten.');
+    return;
+  }
+
+  setNewDishName('');
+  setNewDishPrice('');
+  Alert.alert('Klart', 'Maträtten är tillagd.');
+}
   function changeQty(id, amount) {
     setCart((old) =>
       old
@@ -485,14 +404,8 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
       return;
     }
 
-    if (
-      !customerName.trim() ||
-      !customerPhone.trim()
-    ) {
-      Alert.alert(
-        'Beställning',
-        'Fyll i namn och telefonnummer.'
-      );
+    if (!customerName.trim() || !customerPhone.trim()) {
+      Alert.alert('Beställning', 'Fyll i namn och telefonnummer.');
       return;
     }
 
@@ -507,40 +420,20 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
       return;
     }
 
-    const orderItems = cart.map((item) => ({
-      ...item,
-      price: getCartPrice(item),
-      orderType: usesFixedPrice(item)
-        ? null
-        : orderType,
-    }));
-
     const { error } = await supabase
       .from('orders')
       .insert({
-        items: orderItems,
-
-        message:
-          `Kund: ${customerName.trim()}\n` +
-          `Telefon: ${customerPhone.trim()}` +
-          `${
-            message.trim()
-              ? `\nMeddelande: ${message.trim()}`
-              : ''
-          }`,
-
-        total,
+        items: cart,
+        message: `Kund: ${customerName.trim()}\nTelefon: ${customerPhone.trim()}\nTyp: ${orderType}${message.trim() ? `\nMeddelande: ${message.trim()}` : ''}`,
+        total: total,
         status: 'Ny',
 
+        // Dessa namn matchar Supabase
         pickup_date: orderDate.trim(),
         pickup_time: orderTime.trim(),
 
-        order_type: cartHasRegularFood
-          ? orderType
-          : null,
-
-        created_at:
-          new Date().toISOString(),
+        order_type: orderType,
+        created_at: new Date().toISOString(),
       });
 
     if (error) {
@@ -550,6 +443,7 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
         'Beställning',
         'Beställningen kunde inte skickas just nu.'
       );
+
       return;
     }
 
@@ -564,19 +458,12 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
     setMessage('');
     setOrderDate('');
     setOrderTime('');
-    setOrderType('Äta här');
     setShowCart(false);
   }
 
   async function bookTable() {
-    if (
-      !bookingName.trim() ||
-      !bookingPhone.trim()
-    ) {
-      Alert.alert(
-        'Boka bord',
-        'Fyll i namn och telefonnummer.'
-      );
+    if (!bookingName.trim() || !bookingPhone.trim()) {
+      Alert.alert('Boka bord', 'Fyll i namn och telefonnummer.');
       return;
     }
 
@@ -598,16 +485,7 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
         booking_time: bookingTime.trim(),
         guests:
           Number(bookingGuests) || 2,
-
-        message:
-          `Kund: ${bookingName.trim()}\n` +
-          `Telefon: ${bookingPhone.trim()}` +
-          `${
-            bookingMessage.trim()
-              ? `\nMeddelande: ${bookingMessage.trim()}`
-              : ''
-          }`,
-
+        message: `Kund: ${bookingName.trim()}\nTelefon: ${bookingPhone.trim()}${bookingMessage.trim() ? `\nMeddelande: ${bookingMessage.trim()}` : ''}`,
         status: 'Ny',
       });
 
@@ -618,6 +496,7 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
         'Boka bord',
         'Bokningen kunde inte skickas just nu.'
       );
+
       return;
     }
 
@@ -635,34 +514,28 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
   }
 
   async function login() {
-    if (
-      ownerCode.trim() !== OWNER_CODE
-    ) {
-      Alert.alert(
-        'Admin',
-        'Fel ägarkod.'
-      );
-      return;
-    }
-
-    if (!adminEmail.trim()) {
-      Alert.alert(
-        'Admin',
-        'Fyll i e-post.'
-      );
-      return;
-    }
-
-    setAdmin(true);
+  if (ownerCode.trim() !== OWNER_CODE) {
+    Alert.alert('Admin', 'Fel ägarkod.');
+    return;
   }
 
-  async function logout() {
-    await supabase.auth.signOut();
-
-    setAdmin(false);
-    setOrders([]);
-    setBookings([]);
+  if (!adminEmail.trim()) {
+    Alert.alert('Admin', 'Fyll i e-post.');
+    return;
   }
+
+  setAdmin(true);
+}
+
+async function logout() {
+  await supabase.auth.signOut();
+
+  setAdmin(false);
+  setOrders([]);
+  setBookings([]);
+}
+
+
 
   async function loadOrders() {
     const { data, error } =
@@ -671,9 +544,7 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
         .select('*')
         .order(
           'created_at',
-          {
-            ascending: false,
-          }
+          { ascending: false }
         );
 
     if (error) {
@@ -683,6 +554,7 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
         'Beställningar',
         'Kunde inte hämta beställningar.'
       );
+
       return;
     }
 
@@ -690,43 +562,12 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
   }
 
   async function loadBookings() {
-    const { data, error } =
-      await supabase
-        .from('bookings')
-        .select('*')
-        .order(
-          'booking_date',
-          {
-            ascending: true,
-          }
-        );
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*')
+      .order('booking_date', { ascending: true });
 
-    if (!error) {
-      setBookings(data || []);
-    }
-  }
-
-  async function deleteOrder(order) {
-    const { error } =
-      await supabase
-        .from('orders')
-        .delete()
-        .eq('id', order.id);
-
-    if (error) {
-      Alert.alert(
-        'Fel',
-        'Beställningen kunde inte raderas.'
-      );
-      return;
-    }
-
-    Alert.alert(
-      'Klart',
-      'Beställningen är raderad.'
-    );
-
-    loadOrders();
+    if (!error) setBookings(data || []);
   }
 
   async function foodReady(order) {
@@ -743,6 +584,7 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
         'Maten färdig',
         'Statusen kunde inte uppdateras.'
       );
+
       return;
     }
 
@@ -770,6 +612,7 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
         'Meny',
         'Maträtt 1 får inte vara tom.'
       );
+
       return;
     }
 
@@ -786,21 +629,10 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
 
     const { error } = await supabase
       .from('weekly_menu')
-      .upsert(
-        {
-          day: editDay,
-          dishes: newDishes,
-        },
-        {
-          onConflict: 'day',
-        }
-      );
+      .upsert({ day: editDay, dishes: newDishes }, { onConflict: 'day' });
 
     if (error) {
-      Alert.alert(
-        'Meny',
-        'Menyn kunde inte publiceras till kunderna.'
-      );
+      Alert.alert('Meny', 'Menyn ändrades på mobilen men kunde inte publiceras till alla kunder.');
       return;
     }
 
@@ -809,287 +641,168 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
       `${editDay} är uppdaterad för alla kunder.`
     );
   }
-
-  function updateFullMenu(
-    category,
-    newItems
-  ) {
-    setFullMenu((old) => ({
-      ...old,
-      [category]: newItems,
-    }));
-  }
-     async function addNewDish() {
-    const name = newDishName.trim();
-    const price = Number(newDishPrice);
-
-    if (!name) {
-      Alert.alert('Maträtt', 'Skriv namnet på maträtten.');
-      return;
-    }
-
-    if (!price || price <= 0) {
-      Alert.alert('Maträtt', 'Skriv ett giltigt pris.');
-      return;
-    }
-
-    const category = newDishCategory;
-
-    if (
-      !fullMenu[category] ||
-      category === 'Frukost' ||
-      category === 'Frysta matlådor'
-    ) {
-      Alert.alert(
-        'Maträtt',
-        'Öppna först kategorin där maträtten ska läggas.'
-      );
-      return;
-    }
-
-    const newItems = [
-      ...(fullMenu[category] || []),
-      [name, price],
-    ];
-
-    const { error } = await supabase
-      .from('app_menu')
-      .upsert(
-        {
-          section: category,
-          items: newItems,
-        },
-        {
-          onConflict: 'section',
-        }
-      );
-
-    if (error) {
-      console.log(error);
-      Alert.alert(
-        'Fel',
-        'Maträtten kunde inte läggas till.'
-      );
-      return;
-    }
-
-    updateFullMenu(category, newItems);
-    setNewDishName('');
-    setNewDishPrice('');
-
-    Alert.alert(
-      'Klart',
-      'Maträtten är tillagd och publicerad.'
-    );
+function updateFullMenu(category, newItems) {
+  setFullMenu((old) => ({
+    ...old,
+    [category]: newItems,
+  }));
+}
+   async function addNewDish() {
+  if (!newDishName.trim()) {
+    Alert.alert('Maträtt', 'Skriv maträttens namn.');
+    return;
   }
 
-  async function deleteDish(category, name) {
-    const currentItems =
-      fullMenu[category] || [];
+  const price = Number(newDishPrice);
 
-    const newItems = currentItems.filter(
-      ([dishName]) => dishName !== name
-    );
-
-    const { error } = await supabase
-      .from('app_menu')
-      .upsert(
-        {
-          section: category,
-          items: newItems,
-        },
-        {
-          onConflict: 'section',
-        }
-      );
-
-    if (error) {
-      console.log(error);
-
-      Alert.alert(
-        'Fel',
-        'Maträtten kunde inte raderas.'
-      );
-      return;
-    }
-
-    updateFullMenu(category, newItems);
-
-    Alert.alert(
-      'Klart',
-      'Maträtten är raderad.'
-    );
+  if (!price || price <= 0) {
+    Alert.alert('Maträtt', 'Skriv ett giltigt pris.');
+    return;
   }
 
-  // Menyändringar från admin visas hos kunderna
-  // utan att appen behöver byggas om.
-  useEffect(() => {
-    const menuChannel = supabase
-      .channel('customer-menu-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'app_menu',
-        },
-        () => {
-          loadFullMenu();
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'weekly_menu',
-        },
-        () => {
-          loadWeeklyMenu();
-        }
-      )
-      .subscribe();
+  const newItems = [
+    ...(fullMenu[section] || []),
+    [newDishName.trim(), price],
+  ];
 
-    return () => {
-      supabase.removeChannel(menuChannel);
-    };
-  }, []);
+  setFullMenu((old) => ({
+    ...old,
+    [section]: newItems,
+  }));
 
-  if (showCart) {
+  const { error } = await supabase
+    .from('app_menu')
+    .upsert(
+      { section: section, items: newItems },
+      { onConflict: 'section' }
+    );
+
+  if (error) {
+    Alert.alert('Fel', 'Maträtten kunde inte sparas.');
+    return;
+  }
+
+  setNewDishName('');
+  setNewDishPrice('139');
+
+  Alert.alert('Klart', 'Den nya maträtten är tillagd.');
+}
+    if (showCart) {
     return (
       <SafeAreaView style={styles.page}>
         <StatusBar style="dark" />
 
         <ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={
+            styles.content
+          }
         >
-          <Header
-            onAdminOpen={() =>
-              setShowAdminLogin(true)
-            }
-          />
+          <Header onAdminOpen={() => setShowAdminLogin(true)} />
 
           <Text style={styles.heading}>
-            Kundkorg
+            Din beställning
           </Text>
 
           {cart.length === 0 ? (
-            <Text style={styles.muted}>
+            <Text style={styles.empty}>
               Kundkorgen är tom.
             </Text>
           ) : (
-            cart.map((item) => {
-              const itemPrice =
-                getCartPrice(item);
+            cart.map((item) => (
+              <View
+                key={item.id}
+                style={styles.card}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.item}>
+                    {item.name}
+                  </Text>
 
-              const itemOrderType =
-                usesFixedPrice(item)
-                  ? null
-                  : orderType;
-
-              return (
-                <View
-                  key={item.id}
-                  style={styles.cartItem}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.cartName}>
-                      {item.name}
-                    </Text>
-
-                    {itemOrderType && (
-                      <Text
-                        style={styles.orderTypeUnderFood}
-                      >
-                        {itemOrderType} – {itemPrice} kr
-                      </Text>
-                    )}
-
-                    {!itemOrderType && (
-                      <Text style={styles.cartPrice}>
-                        {itemPrice} kr
-                      </Text>
-                    )}
-                  </View>
-
-                  <View style={styles.qty}>
-                    <TouchableOpacity
-                      style={styles.small}
-                      onPress={() =>
-                        changeQty(item.id, -1)
-                      }
-                    >
-                      <Text style={styles.smallText}>
-                        −
-                      </Text>
-                    </TouchableOpacity>
-
-                    <Text style={styles.qtyText}>
-                      {item.qty}
-                    </Text>
-
-                    <TouchableOpacity
-                      style={styles.small}
-                      onPress={() =>
-                        changeQty(item.id, 1)
-                      }
-                    >
-                      <Text style={styles.smallText}>
-                        +
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
+                  <Text style={styles.muted}>
+                    {item.price} kr ×{' '}
+                    {item.qty}
+                  </Text>
                 </View>
-              );
-            })
-          )}
 
-          {cartHasRegularFood && (
-            <>
-              <Text style={styles.label}>
-                Hur vill du ha maten?
-              </Text>
-
-              <View style={styles.types}>
-                {ORDER_TYPES.map(
-                  ([name, price]) => (
-                    <TouchableOpacity
-                      key={name}
-                      onPress={() =>
-                        setOrderType(name)
+                <View style={styles.qty}>
+                  <TouchableOpacity
+                    style={styles.small}
+                    onPress={() =>
+                      changeQty(
+                        item.id,
+                        -1
+                      )
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.smallText
                       }
-                      style={[
-                        styles.type,
-                        orderType === name &&
-                          styles.typeActive,
-                      ]}
                     >
-                      <Text
-                        style={[
-                          styles.typeText,
-                          orderType === name &&
-                            styles.typeTextActive,
-                        ]}
-                      >
-                        {name}
-                        {'\n'}
-                        {price} kr
-                      </Text>
-                    </TouchableOpacity>
-                  )
-                )}
+                      −
+                    </Text>
+                  </TouchableOpacity>
+
+                  <Text
+                    style={styles.qtyText}
+                  >
+                    {item.qty}
+                  </Text>
+
+                  <TouchableOpacity
+                    style={styles.small}
+                    onPress={() =>
+                      changeQty(
+                        item.id,
+                        1
+                      )
+                    }
+                  >
+                    <Text
+                      style={
+                        styles.smallText
+                      }
+                    >
+                      +
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </>
+            ))
           )}
 
           <Text style={styles.total}>
             Totalt: {total} kr
           </Text>
 
-          <Text style={styles.label}>
-            Namn
-          </Text>
+          {cart.some(item => !['Frukost', 'Frysta matlådor'].includes(item.category)) && (
+            <>
+              <Text style={styles.label}>Hur vill du ha maten?</Text>
+              <View style={styles.types}>
+                {ORDER_TYPES.map(([name, price]) => (
+                  <TouchableOpacity
+                    key={name}
+                    onPress={() => setOrderType(name)}
+                    style={[
+                      styles.type,
+                      orderType === name && styles.typeActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.typeText,
+                        orderType === name && styles.typeTextActive,
+                      ]}
+                    >
+                      {name}{'\n'}{price} kr
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          )}
 
+          <Text style={styles.label}>Namn</Text>
           <TextInput
             style={styles.field}
             value={customerName}
@@ -1098,10 +811,7 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
             autoComplete="name"
           />
 
-          <Text style={styles.label}>
-            Telefonnummer
-          </Text>
-
+          <Text style={styles.label}>Telefonnummer</Text>
           <TextInput
             style={styles.field}
             value={customerPhone}
@@ -1115,44 +825,19 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
             Datum 📅
           </Text>
 
-          <TouchableOpacity
-            style={styles.pickerButton}
-            onPress={() =>
-              setShowOrderDatePicker(true)
-            }
-          >
-            <Text
-              style={
-                orderDate
-                  ? styles.pickerValue
-                  : styles.pickerPlaceholder
-              }
-            >
+          <TouchableOpacity style={styles.pickerButton} onPress={() => setShowOrderDatePicker(true)}>
+            <Text style={orderDate ? styles.pickerValue : styles.pickerPlaceholder}>
               {orderDate || 'Välj datum'}
             </Text>
           </TouchableOpacity>
-
           {showOrderDatePicker && (
             <DateTimePicker
-              value={
-                orderDate
-                  ? new Date(
-                      `${orderDate}T12:00:00`
-                    )
-                  : new Date()
-              }
+              value={orderDate ? new Date(`${orderDate}T12:00:00`) : new Date()}
               mode="date"
               minimumDate={new Date()}
               onChange={(_, selected) => {
-                setShowOrderDatePicker(
-                  Platform.OS === 'ios'
-                );
-
-                if (selected) {
-                  setOrderDate(
-                    formatDate(selected)
-                  );
-                }
+                setShowOrderDatePicker(Platform.OS === 'ios');
+                if (selected) setOrderDate(formatDate(selected));
               }}
             />
           )}
@@ -1161,45 +846,23 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
             Tid 🕐
           </Text>
 
-          <View style={styles.timeList}>
-            {[
-              '08:00',
-              '08:30',
-              '09:00',
-              '09:30',
-              '10:00',
-              '10:30',
-              '11:00',
-              '11:30',
-              '12:00',
-              '12:30',
-              '13:00',
-              '13:30',
-              '14:00',
-            ].map((time) => (
-              <TouchableOpacity
-                key={time}
-                onPress={() =>
-                  setOrderTime(time)
-                }
-                style={[
-                  styles.timeButton,
-                  orderTime === time &&
-                    styles.timeButtonActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.timeButtonText,
-                    orderTime === time &&
-                      styles.timeButtonTextActive,
-                  ]}
-                >
-                  {time}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+  {['08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30','14:00'].map((time) => (
+   <TouchableOpacity
+  key={time}
+  style={[
+    styles.pickerButton,
+    orderTime === time && styles.timeButtonActive,
+  ]}
+  onPress={() => setOrderTime(time)}
+>
+  <Text style={orderTime === time ? styles.timeButtonTextActive : styles.pickerValue}>
+    {time}
+  </Text>
+</TouchableOpacity>
+  ))}
+</View>  
+           
 
           <Text style={styles.label}>
             Meddelande till restaurangen
@@ -1215,8 +878,9 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
 
           <View style={styles.info}>
             <Text style={styles.infoText}>
-              Ingen betalning i appen. Kunden
-              betalar på restaurangen.
+              Ingen betalning i appen.
+              Kunden betalar på
+              restaurangen.
             </Text>
           </View>
 
@@ -1242,30 +906,17 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
       <StatusBar style="dark" />
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={
+          styles.content
+        }
       >
-        <Header
-          onAdminOpen={() =>
-            setShowAdminLogin(true)
-          }
-        />
+        <Header onAdminOpen={() => setShowAdminLogin(true)} />
 
         <View style={styles.hero}>
-          <Image
-            source={{
-              uri: FOOD_IMAGES.Lunch,
-            }}
-            style={styles.heroImage}
-          />
-
+          <Image source={{ uri: FOOD_IMAGES.Lunch }} style={styles.heroImage} />
           <View style={styles.heroOverlay}>
-            <Text style={styles.heroTitle}>
-              Hemlagad lunch i Kungens Kurva
-            </Text>
-
-            <Text style={styles.heroText}>
-              Välj din mat och betala på plats.
-            </Text>
+            <Text style={styles.heroTitle}>Hemlagad lunch i Kungens Kurva</Text>
+            <Text style={styles.heroText}>Välj din mat och betala på plats.</Text>
           </View>
         </View>
 
@@ -1278,54 +929,59 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
 
         <View style={styles.info}>
           <Text style={styles.infoText}>
-            Inkl. smör, bröd, dryck, kaffe,
-            hembakt bröd, salladsbuffé, te,
-            kaka och soppa
-            {'\n'}
-            Lunchhäfte: köp 10 luncher – 11:e
-            lunchen gratis
+            Lunch 139 kr • Pensionär 129 kr • Mat för avhämtning 129 kr • Endast matlåda 119 kr
+            {'\n'}Inkl. smör, bröd, dryck, kaffe, hembakt bröd, salladsbuffé, te, kaka och soppa
+            {'\n'}Lunchhäfte: köp 10 luncher – 11:e lunchen gratis
           </Text>
         </View>
 
-        <View style={styles.categoryGrid}>
-          {CATEGORIES.map((category) => (
-            <TouchableOpacity
-              key={category}
-              onPress={() =>
-                setSection(category)
-              }
-              style={styles.categoryButton}
-            >
-              {!!FOOD_IMAGES[category] && (
-                <Image
-                  source={
-                    typeof FOOD_IMAGES[
-                      category
-                    ] === 'string'
-                      ? {
-                          uri: FOOD_IMAGES[
-                            category
-                          ],
-                        }
-                      : FOOD_IMAGES[category]
-                  }
-                  style={styles.categoryImage}
-                  resizeMode="cover"
-                />
-              )}
 
-              <View
-                style={styles.categoryTitleBox}
-              >
-                <Text
-                  style={styles.categoryTitle}
-                >
-                  {category}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
+<View style={{
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  justifyContent: 'space-between',
+  marginBottom: 12,
+}}>
+  {CATEGORIES.map((category) => (
+    <TouchableOpacity
+      key={category}
+      onPress={() => setSection(category)}
+      style={{
+        width: '32%',
+        marginBottom: 12,
+        borderRadius: 14,
+        overflow: 'hidden',
+        backgroundColor: '#0755ad',
+      }}
+    >
+      <Image
+        source={typeof FOOD_IMAGES[category] === 'string' ? { uri: FOOD_IMAGES[category] } : FOOD_IMAGES[category]}
+        style={{
+          width: '100%',
+          height: 68,
+        }}
+        resizeMode="cover"
+      />
+
+      <View style={{
+        backgroundColor: '#0755ad',
+        minHeight: 48,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 4,
+      }}>
+        <Text style={{
+          color: '#ffffff',
+          fontSize: 16,
+          fontWeight: '800',
+          textAlign: 'center',
+        }}>
+          {category}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  ))}
+</View>
 
         {section === 'Lunch' && (
           <>
@@ -1334,75 +990,87 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
             </Text>
 
             <View style={styles.days}>
-              {Object.keys(weeklyLunch).map(
-                (item) => (
+              {Object.keys(
+                weeklyLunch
+              ).map((item) => (
+                <TouchableOpacity
+                  key={item}
+                  onPress={() =>
+                    setDay(item)
+                  }
+                  style={[
+                 styles.day,
+day === item && styles.dayActive,  
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.dayText,
+                      day === item &&
+                        styles.dayTextActive,
+                    ]}
+                  >
+                    {item}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.label}>
+              Välj:
+            </Text>
+
+            <View style={styles.types}>
+              {ORDER_TYPES.map(
+                ([name, price]) => (
                   <TouchableOpacity
-                    key={item}
+                    key={name}
                     onPress={() =>
-                      setDay(item)
+                      setOrderType(name)
                     }
                     style={[
-                      styles.day,
-                      day === item &&
-                        styles.dayActive,
+                      styles.type,
+                      orderType === name &&
+                        styles.typeActive,
                     ]}
                   >
                     <Text
                       style={[
-                        styles.dayText,
-                        day === item &&
-                          styles.dayTextActive,
+                        styles.typeText,
+                        orderType === name &&
+                          styles.typeTextActive,
                       ]}
                     >
-                      {item}
+                      {name}
+                      {'\n'}
+                      {price} kr
                     </Text>
                   </TouchableOpacity>
                 )
               )}
             </View>
 
-            {(weeklyLunch[day] || []).map(
+          {weeklyLunch[day].map(
               (name, index) => (
                 <Food
                   key={`${day}-${name}`}
                   number={index + 1}
                   name={name}
                   price={lunchPrice}
-                  onAdd={() => {
-                    const days = [
-                      'Söndag',
-                      'Måndag',
-                      'Tisdag',
-                      'Onsdag',
-                      'Torsdag',
-                      'Fredag',
-                      'Lördag',
-                    ];
+onAdd={() => {
+  const days = ['Söndag', 'Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag'];
+  const today = days[new Date().getDay()];
 
-                    const today =
-                      days[
-                        new Date().getDay()
-                      ];
+  if (day !== today || !['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag'].includes(today)) {
+    Alert.alert(
+      'Veckans meny',
+      'Du kan titta på andra dagars lunch, men bara beställa dagens lunch.'
+    );
+    return;
+  }
 
-                    if (
-                      day !== today ||
-                      ![
-                        'Måndag',
-                        'Tisdag',
-                        'Onsdag',
-                        'Torsdag',
-                        'Fredag',
-                      ].includes(today)
-                    ) {
-                      Alert.alert(
-                        'Veckans meny',
-                        'Du kan titta på andra dagars lunch, men bara beställa dagens lunch.'
-                      );
-                      return;
-                    }
-
-                    addToCart(name, 139);
-                  }}
+  addToCart(name, lunchPrice, 'Lunch');
+}}
                 />
               )
             )}
@@ -1416,236 +1084,150 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
             </Text>
 
             {!!FOOD_IMAGES[section] && (
-              <Image
-                source={
-                  typeof FOOD_IMAGES[
-                    section
-                  ] === 'string'
-                    ? {
-                        uri: FOOD_IMAGES[
-                          section
-                        ],
-                      }
-                    : FOOD_IMAGES[section]
-                }
-                style={styles.sectionImage}
-                resizeMode="cover"
-              />
+              <Image source={{ uri: FOOD_IMAGES[section] }} style={styles.sectionImage} />
             )}
 
-            {(fullMenu[section] || []).map(
+            {fullMenu[section].map(
               ([name, price]) => (
                 <Food
-                  key={`${section}-${name}`}
+                  key={name}
                   name={name}
                   price={price}
-                  onAdd={() =>
-                    addToCart(name, price)
-                  }
+ onAdd={() =>
+  addToCart(
+    name,
+    price,
+    section
+  )
+}
                 />
               )
             )}
-          </>
+      </>
         )}
+{section === 'Catering & Festlokal' && (
+  <>
+    <Text style={styles.heading}>Catering & Festlokal</Text>
 
-        {section ===
-          'Catering & Festlokal' && (
-          <>
-            <Text style={styles.heading}>
-              Catering & Festlokal
-            </Text>
+    <Text style={styles.infoText}>
+      Planerar du fest, möte eller catering? Skicka en bokningsförfrågan så kontaktar vi dig.
+    </Text>
 
-            <Text style={styles.infoText}>
-              Planerar du fest, möte eller
-              catering? Skicka en
-              bokningsförfrågan så kontaktar vi
-              dig.
-            </Text>
+    <Text style={styles.label}>Namn</Text>
+    <TextInput
+      style={styles.field}
+      value={bookingName}
+      onChangeText={setBookingName}
+      placeholder="Ditt namn"
+    />
 
-            <Text style={styles.label}>
-              Namn
-            </Text>
+    <Text style={styles.label}>Telefonnummer</Text>
+    <TextInput
+      style={styles.field}
+      value={bookingPhone}
+      onChangeText={setBookingPhone}
+      placeholder="T.ex. 070 123 45 67"
+      keyboardType="phone-pad"
+    />
 
-            <TextInput
-              style={styles.field}
-              value={bookingName}
-              onChangeText={setBookingName}
-              placeholder="Ditt namn"
-            />
+    <Text style={styles.label}>Datum 📅</Text>
+    <TouchableOpacity
+      style={styles.pickerButton}
+      onPress={() => setShowBookingDatePicker(true)}
+    >
+      <Text style={bookingDate ? styles.pickerValue : styles.pickerPlaceholder}>
+        {bookingDate || 'Välj datum'}
+      </Text>
+    </TouchableOpacity>
 
-            <Text style={styles.label}>
-              Telefonnummer
-            </Text>
+    {showBookingDatePicker && (
+      <DateTimePicker
+        value={bookingDate ? new Date(`${bookingDate}T12:00:00`) : new Date()}
+        mode="date"
+        minimumDate={new Date()}
+        onChange={(_, selected) => {
+          setShowBookingDatePicker(false);
+          if (selected) setBookingDate(formatDate(selected));
+        }}
+      />
+    )}
 
-            <TextInput
-              style={styles.field}
-              value={bookingPhone}
-              onChangeText={setBookingPhone}
-              placeholder="T.ex. 070 123 45 67"
-              keyboardType="phone-pad"
-            />
+    <Text style={styles.label}>Tid 🕐</Text>
+    <TextInput
+      style={styles.field}
+      value={bookingTime}
+      onChangeText={setBookingTime}
+      placeholder="T.ex. 18:00"
+    />
 
-            <Text style={styles.label}>
-              Datum 📅
-            </Text>
+    <Text style={styles.label}>Antal personer</Text>
+    <TextInput
+      style={styles.field}
+      value={bookingGuests}
+      onChangeText={setBookingGuests}
+      keyboardType="number-pad"
+      placeholder="Antal personer"
+    />
 
-            <TouchableOpacity
-              style={styles.pickerButton}
-              onPress={() =>
-                setShowBookingDatePicker(true)
-              }
-            >
-              <Text
-                style={
-                  bookingDate
-                    ? styles.pickerValue
-                    : styles.pickerPlaceholder
-                }
-              >
-                {bookingDate || 'Välj datum'}
-              </Text>
-            </TouchableOpacity>
+<Text style={styles.label}>Meddelande</Text>
+<TextInput
+  style={styles.messageInput}
+  multiline
+  value={bookingMessage}
+  onChangeText={setBookingMessage}
+  placeholder="Berätta om catering eller festen..."
+/>
 
-            {showBookingDatePicker && (
-              <DateTimePicker
-                value={
-                  bookingDate
-                    ? new Date(
-                        `${bookingDate}T12:00:00`
-                      )
-                    : new Date()
-                }
-                mode="date"
-                minimumDate={new Date()}
-                onChange={(_, selected) => {
-                  setShowBookingDatePicker(
-                    false
-                  );
+<AppButton
+  title="Skicka bokningsförfrågan"
+  onPress={bookTable}
+/>
+</>
+)}
 
-                  if (selected) {
-                    setBookingDate(
-                      formatDate(selected)
-                    );
-                  }
-                }}
-              />
-            )}
-
-            <Text style={styles.label}>
-              Tid
-            </Text>
-
-            <TextInput
-              style={styles.field}
-              value={bookingTime}
-              onChangeText={setBookingTime}
-              placeholder="T.ex. 18:00"
-            />
-
-            <Text style={styles.label}>
-              Antal personer
-            </Text>
-
-            <TextInput
-              style={styles.field}
-              value={bookingGuests}
-              onChangeText={setBookingGuests}
-              keyboardType="number-pad"
-              placeholder="Antal personer"
-            />
-
-            <Text style={styles.label}>
-              Meddelande
-            </Text>
-
-            <TextInput
-              style={styles.messageInput}
-              multiline
-              value={bookingMessage}
-              onChangeText={
-                setBookingMessage
-              }
-              placeholder="Berätta om catering eller festen..."
-            />
-
-            <AppButton
-              title="Skicka bokningsförfrågan"
-              onPress={bookTable}
-            />
-          </>
-        )}
-
-        {section === 'Boka bord' && (
+{section === 'Boka bord' && (
+         
           <>
             <Text style={styles.heading}>
               Boka bord
             </Text>
 
-            <Text style={styles.label}>
-              Namn
-            </Text>
-
+            <Text style={styles.label}>Namn</Text>
             <TextInput
               style={styles.field}
               value={bookingName}
               onChangeText={setBookingName}
               placeholder="Ditt namn"
+              autoComplete="name"
             />
 
-            <Text style={styles.label}>
-              Telefonnummer
-            </Text>
-
+            <Text style={styles.label}>Telefonnummer</Text>
             <TextInput
               style={styles.field}
               value={bookingPhone}
               onChangeText={setBookingPhone}
               placeholder="T.ex. 070 123 45 67"
               keyboardType="phone-pad"
+              autoComplete="tel"
             />
 
             <Text style={styles.label}>
               Datum 📅
             </Text>
 
-            <TouchableOpacity
-              style={styles.pickerButton}
-              onPress={() =>
-                setShowBookingDatePicker(true)
-              }
-            >
-              <Text
-                style={
-                  bookingDate
-                    ? styles.pickerValue
-                    : styles.pickerPlaceholder
-                }
-              >
+            <TouchableOpacity style={styles.pickerButton} onPress={() => setShowBookingDatePicker(true)}>
+              <Text style={bookingDate ? styles.pickerValue : styles.pickerPlaceholder}>
                 {bookingDate || 'Välj datum'}
               </Text>
             </TouchableOpacity>
-
             {showBookingDatePicker && (
               <DateTimePicker
-                value={
-                  bookingDate
-                    ? new Date(
-                        `${bookingDate}T12:00:00`
-                      )
-                    : new Date()
-                }
+                value={bookingDate ? new Date(`${bookingDate}T12:00:00`) : new Date()}
                 mode="date"
                 minimumDate={new Date()}
                 onChange={(_, selected) => {
-                  setShowBookingDatePicker(
-                    Platform.OS === 'ios'
-                  );
-
-                  if (selected) {
-                    setBookingDate(
-                      formatDate(selected)
-                    );
-                  }
+                  setShowBookingDatePicker(Platform.OS === 'ios');
+                  if (selected) setBookingDate(formatDate(selected));
                 }}
               />
             )}
@@ -1654,40 +1236,17 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
               Tid 🕐
             </Text>
 
-            <View style={styles.timeList}>
-              {[
-                '08:00',
-                '08:30',
-                '09:00',
-                '09:30',
-                '10:00',
-                '10:30',
-                '11:00',
-                '11:30',
-                '12:00',
-                '12:30',
-                '13:00',
-                '13:30',
-                '14:00',
-              ].map((time) => (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {['08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30','14:00'].map((time) => (
                 <TouchableOpacity
                   key={time}
-                  onPress={() =>
-                    setBookingTime(time)
-                  }
                   style={[
-                    styles.timeButton,
-                    bookingTime === time &&
-                      styles.timeButtonActive,
+                    styles.pickerButton,
+                    bookingTime === time && styles.timeButtonActive,
                   ]}
+                  onPress={() => setBookingTime(time)}
                 >
-                  <Text
-                    style={[
-                      styles.timeButtonText,
-                      bookingTime === time &&
-                        styles.timeButtonTextActive,
-                    ]}
-                  >
+                  <Text style={bookingTime === time ? styles.timeButtonTextActive : styles.pickerValue}>
                     {time}
                   </Text>
                 </TouchableOpacity>
@@ -1700,11 +1259,11 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
 
             <TextInput
               style={styles.field}
+              keyboardType="number-pad"
               value={bookingGuests}
               onChangeText={
                 setBookingGuests
               }
-              keyboardType="number-pad"
               placeholder="2"
             />
 
@@ -1741,325 +1300,298 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
         />
 
         {(showAdminLogin || admin) && (
-          <View style={styles.adminBox}>
-            <Text style={styles.adminTitle}>
-              Restaurang / Admin
-            </Text>
+        <View style={styles.adminBox}>
+          <Text style={styles.adminTitle}>
+            Restaurang / Admin
+          </Text>
 
-            {!admin ? (
-              <>
-                <TextInput
-                  style={styles.field}
-                  keyboardType="number-pad"
-                  secureTextEntry
-                  value={ownerCode}
-                  onChangeText={setOwnerCode}
-                  placeholder="Ägarkod"
-                  maxLength={4}
-                />
+          {!admin ? (
+            <>
+              <TextInput
+                style={styles.field}
+                keyboardType="number-pad"
+                secureTextEntry
+                value={ownerCode}
+                onChangeText={setOwnerCode}
+                placeholder="Ägarkod"
+                maxLength={4}
+              />
 
-                <TextInput
-                  style={styles.field}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  value={adminEmail}
-                  onChangeText={setAdminEmail}
-                  placeholder="E-post"
-                />
+              <TextInput
+                style={styles.field}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                value={adminEmail}
+                onChangeText={
+                  setAdminEmail
+                }
+                placeholder="E-post"
+              />
 
-                <AppButton
-                  title="Logga in"
-                  outline
-                  onPress={login}
-                />
-              </>
-            ) : (
-              <>
-                <Text style={styles.success}>
-                  ✓ Inloggad som admin
-                </Text>
+        
 
-                <AppButton
-                  title="Uppdatera beställningar"
-                  onPress={() => {
-                    loadOrders();
-                    loadBookings();
-                  }}
-                />
-
-                <Text style={styles.adminHeading}>
-                  Inkommande beställningar
-                </Text>
-
-                {orders.length === 0 && (
-                  <Text style={styles.muted}>
-                    Inga beställningar att visa.
-                  </Text>
-                )}
-
-                {orders.map((order) => (
-                  <View
-                    key={order.id}
-                    style={styles.orderCard}
-                  >
-                    <Text style={styles.orderTitle}>
-                      Beställning #{order.id}
-                    </Text>
-
-                    <Text style={styles.muted}>
-                      Status: {order.status || 'Ny'}
-                    </Text>
-
-                    {!!order.pickup_date && (
-                      <Text>
-                        Datum: {order.pickup_date}
-                      </Text>
-                    )}
-
-                    {!!order.pickup_time && (
-                      <Text>
-                        Tid: {order.pickup_time}
-                      </Text>
-                    )}
-
-                    {Array.isArray(order.items) &&
-                      order.items.map(
-                        (item, index) => (
-                          <View
-                            key={`${order.id}-${index}`}
-                            style={
-                              styles.adminOrderItem
-                            }
-                          >
-                            <Text
-                              style={
-                                styles.adminFoodName
-                              }
-                            >
-                              {item.qty} × {item.name}
-                            </Text>
-
-                            {!!(
-                              item.orderType ||
-                              order.order_type
-                            ) && (
-                              <Text
-                                style={
-                                  styles.adminOrderType
-                                }
-                              >
-                                {item.orderType ||
-                                  order.order_type}
-                                {' – '}
-                                {item.price} kr
-                              </Text>
-                            )}
-                          </View>
-                        )
-                      )}
-
-                    {!!order.message && (
-                      <Text style={styles.orderMessage}>
-                        {order.message}
-                      </Text>
-                    )}
-
-                    <Text style={styles.orderTotal}>
-                      Totalt: {order.total || 0} kr
-                    </Text>
-
-                    {order.status !==
-                      'Maten färdig' && (
-                      <AppButton
-                        title="Maten färdig"
-                        onPress={() =>
-                          foodReady(order)
-                        }
-                      />
-                    )}
-
-                    {order.status ===
-                      'Maten färdig' && (
-                      <AppButton
-                        title="Radera beställning"
-                        outline
-                        onPress={() =>
-                          deleteOrder(order)
-                        }
-                      />
-                    )}
-                  </View>
-                ))}
-              <Text style={styles.adminHeading}>
-                Bordsbokningar
+              <AppButton
+                title="Logga in"
+                outline
+                onPress={login}
+              />
+            </>
+          ) : (
+            <>
+              <Text style={styles.success}>
+                ✓ Inloggad som admin
               </Text>
 
-              {bookings.length === 0 && (
-                <Text style={styles.muted}>
-                  Inga bokningar att visa.
+              <AppButton
+                title="Uppdatera beställningar"
+                onPress={() => {
+                  loadOrders();
+                  loadBookings();
+                }}
+              />
+
+              <Text
+                style={
+                  styles.adminHeading
+                }
+              >
+                Inkommande beställningar
+              </Text>
+
+              {orders.length === 0 && (
+                <Text
+                  style={styles.muted}
+                >
+                  Inga beställningar att
+                  visa.
                 </Text>
               )}
 
-              {bookings.map((booking) => (
+              {orders.map((order) => (
                 <View
-                  key={booking.id}
+                  key={order.id}
                   style={styles.orderCard}
                 >
-                  <Text style={styles.orderTitle}>
-                    {booking.booking_date} kl.{' '}
-                    {booking.booking_time}
+                  <Text
+                    style={
+                      styles.orderTitle
+                    }
+                  >
+                    Beställning #
+                    {order.id}
                   </Text>
 
-                  <Text>
-                    {booking.guests || 2} personer
+                  <Text
+                    style={styles.muted}
+                  >
+                    Status:{' '}
+                    {order.status ||
+                      'Ny'}
                   </Text>
 
-                  {!!booking.message && (
-                    <Text style={styles.orderMessage}>
-                      {booking.message}
+                  {!!order.pickup_date && (
+                    <Text>
+                      Datum:{' '}
+                      {order.pickup_date}
                     </Text>
+                  )}
+
+                  {!!order.pickup_time && (
+                    <Text>
+                      Tid:{' '}
+                      {order.pickup_time}
+                    </Text>
+                  )}
+
+                  {!!order.order_type && (
+                    <Text>
+                      Typ:{' '}
+                      {order.order_type}
+                    </Text>
+                  )}
+
+                  {Array.isArray(
+                    order.items
+                  ) &&
+                    order.items.map(
+                      (item, index) => (
+                        <Text
+                          key={`${order.id}-${index}`}
+                        >
+                          • {item.qty} ×{' '}
+                          {item.name}
+                        </Text>
+                      )
+                    )}
+
+                  {!!order.message && (
+                    <Text
+                      style={
+                        styles.orderMessage
+                      }
+                    >
+                      Meddelande:{' '}
+                      {order.message}
+                    </Text>
+                  )}
+
+                  <Text
+                    style={
+                      styles.orderTotal
+                    }
+                  >
+                    Totalt:{' '}
+                    {order.total || 0} kr
+                  </Text>
+
+                  {order.status !==
+                    'Maten färdig' && (
+                    <AppButton
+                      title="Maten färdig"
+                      onPress={() =>
+                        foodReady(order)
+                      }
+                    />
                   )}
                 </View>
               ))}
 
-              <Text style={styles.adminHeading}>
-                Ändra hela menyn
-              </Text>
+              <Text style={styles.adminHeading}>Bordsbokningar</Text>
 
-              <Text style={styles.adminHeading}>
-                Ändra övriga maträtter
-              </Text>
+              {bookings.length === 0 && (
+                <Text style={styles.muted}>Inga bokningar att visa.</Text>
+              )}
 
-              {ADMIN_CATEGORIES
-                .filter(
-                  (category) =>
-                    category !== 'Lunch'
-                )
-                .map((category) => (
-                  <AppButton
-                    key={category}
-                    title={`Ändra ${category}`}
+              {bookings.map((booking) => (
+                <View key={booking.id} style={styles.orderCard}>
+                  <Text style={styles.orderTitle}>
+                    {booking.booking_date} kl. {booking.booking_time}
+                  </Text>
+                  <Text>{booking.guests || 2} personer</Text>
+                  {!!booking.message && (
+                    <Text style={styles.orderMessage}>{booking.message}</Text>
+                  )}
+                </View>
+              ))}
+
+              <Text
+                style={
+                  styles.adminHeading
+                }
+              >
+Ändra hela menyn
+              </Text>
+                   <View style={{ flexDirection: 'row', gap: 8 }}>
+  <View style={{ flex: 1 }}>
+    <AppButton
+      title="✏️ Ändra maträtter"
+      onPress={() => setAdminMenuMode('edit')}
+    />
+  </View>
+
+  <View style={{ flex: 1 }}>
+    <AppButton
+      title="➕ Lägg till maträtt"
+      onPress={() => setAdminMenuMode('add')}
+    />
+  </View>
+</View>
+         {adminMenuMode === 'add' && (
+  <>
+    <TextInput
+      style={styles.field}
+      value={newDishName}
+      onChangeText={setNewDishName}
+      placeholder="Ny maträtt"
+    />
+
+    <TextInput
+      style={styles.field}
+      value={newDishPrice}
+      onChangeText={setNewDishPrice}
+      keyboardType="number-pad"
+      placeholder="Pris"
+    />
+
+    <AppButton
+      title="Spara ny maträtt"
+      onPress={addNewDish}
+    />
+  </>
+)}
+<Text style={styles.adminHeading}>
+  Ändra övriga maträtter
+</Text>
+{adminMenuMode === 'edit' && (
+           {CATEGORIES.filter((category) => category !== 'Lunch' && category !== 'Boka bord').map((category) => (
+  <AppButton
+    key={category}
+    title={`Ändra ${category}`}
+    onPress={() => setSection(category)}
+  />
+))}{section !== 'Lunch' && section !== 'Boka bord' && (
+  <Text style={styles.adminHeading}>
+    Redigerar: {section}
+  </Text>
+)} {section !== 'Lunch' && section !== 'Boka bord' &&
+  (fullMenu[section] || []).map((food, index) => (
+    <View key={`${section}-${index}`}>
+      <TextInput
+        style={styles.field}
+        value={food[0]}
+        onChangeText={(text) => {
+          const newItems = [...fullMenu[section]];
+          newItems[index] = [text, food[1]];
+          updateFullMenu(section, newItems);
+        }}
+      />
+      <TextInput
+        style={styles.field}
+        value={String(food[1])}
+        keyboardType="number-pad"
+        onChangeText={(text) => {
+          const newItems = [...fullMenu[section]];
+          newItems[index] = [food[0], Number(text) || 0];
+          updateFullMenu(section, newItems);
+        }}
+        placeholder="Pris"
+      />
+    </View>
+  ))
+}{section !== 'Lunch' && section !== 'Boka bord' && (
+  <AppButton
+    title="Spara ändringar"
+    onPress={() => saveFullMenu(section)}
+  />
+)}
+<View style={styles.days}>
+                {Object.keys(
+                  weeklyLunch
+                ).map((item) => (
+                  <TouchableOpacity
+                    key={`edit-${item}`}
                     onPress={() =>
-                      setSection(category)
-                    }
-                  />
-                ))}
-
-              {section !== 'Lunch' &&
-                section !== 'Boka bord' &&
-                fullMenu[section] && (
-                  <>
-                    <Text
-                      style={styles.adminHeading}
-                    >
-                      Redigerar: {section}
-                    </Text>
-
-                    {(fullMenu[section] || []).map(
-                      (food, index) => (
-                        <View
-                          key={`${section}-${index}`}
-                          style={styles.editBox}
-                        >
-                          <TextInput
-                            style={styles.field}
-                            value={food[0]}
-                            onChangeText={(text) => {
-                              const newItems = [
-                                ...fullMenu[
-                                  section
-                                ],
-                              ];
-
-                              newItems[index] = [
-                                text,
-                                food[1],
-                              ];
-
-                              updateFullMenu(
-                                section,
-                                newItems
-                              );
-                            }}
-                          />
-
-                          <TextInput
-                            style={styles.field}
-                            value={String(food[1])}
-                            keyboardType="decimal-pad"
-                            onChangeText={(text) => {
-                              const newItems = [
-                                ...fullMenu[
-                                  section
-                                ],
-                              ];
-
-                              newItems[index] = [
-                                food[0],
-                                Number(text) || 0,
-                              ];
-
-                              updateFullMenu(
-                                section,
-                                newItems
-                              );
-                            }}
-                            placeholder="Pris"
-                          />
-
-                          <AppButton
-                            title="Radera maträtt"
-                            outline
-                            onPress={() =>
-                              deleteDish(
-                                section,
-                                food[0]
-                              )
-                            }
-                          />
-                        </View>
+                      openDayForEditing(
+                        item
                       )
-                    )}
-
-                    <AppButton
-                      title="Spara ändringar"
-                      onPress={() =>
-                        saveFullMenu(section)
-                      }
-                    />
-                  </>
-                )}
-
-              <Text style={styles.adminHeading}>
-                Ändra veckans lunch
-              </Text>
-
-              <View style={styles.days}>
-                {Object.keys(weeklyLunch).map(
-                  (item) => (
-                    <TouchableOpacity
-                      key={`edit-${item}`}
-                      onPress={() =>
-                        openDayForEditing(item)
-                      }
+                    }
+                    style={[
+                      styles.day,
+                      editDay === item &&
+                        styles.dayActive,
+                    ]}
+                  >
+                    <Text
                       style={[
-                        styles.day,
+                        styles.dayText,
                         editDay === item &&
-                          styles.dayActive,
+                          styles.dayTextActive,
                       ]}
                     >
-                      <Text
-                        style={[
-                          styles.dayText,
-                          editDay === item &&
-                            styles.dayTextActive,
-                        ]}
-                      >
-                        {item}
-                      </Text>
-                    </TouchableOpacity>
-                  )
-                )}
+                      {item}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
 
               <Text style={styles.label}>
@@ -2069,88 +1601,37 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
               <TextInput
                 style={styles.field}
                 value={editDish1}
-                onChangeText={setEditDish1}
+                onChangeText={
+                  setEditDish1
+                }
                 placeholder="Maträtt 1"
               />
 
               <TextInput
                 style={styles.field}
                 value={editDish2}
-                onChangeText={setEditDish2}
+                onChangeText={
+                  setEditDish2
+                }
                 placeholder="Maträtt 2"
               />
 
               <TextInput
                 style={styles.field}
                 value={editDish3}
-                onChangeText={setEditDish3}
+                onChangeText={
+                  setEditDish3
+                }
                 placeholder="Maträtt 3"
               />
 
               <AppButton
-                title="Spara veckomeny"
-                onPress={saveMenuChanges}
+                title="Spara meny"
+                onPress={
+                  saveMenuChanges
+                }
               />
-
-              <Text style={styles.adminHeading}>
-                Lägg till ny maträtt
-              </Text>
-
-              <View style={styles.days}>
-                {ADMIN_CATEGORIES
-                  .filter(
-                    (category) =>
-                      category !== 'Lunch'
-                  )
-                  .map((category) => (
-                    <TouchableOpacity
-                      key={`new-${category}`}
-                      onPress={() =>
-                        setNewDishCategory(
-                          category
-                        )
-                      }
-                      style={[
-                        styles.day,
-                        newDishCategory ===
-                          category &&
-                          styles.dayActive,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.dayText,
-                          newDishCategory ===
-                            category &&
-                            styles.dayTextActive,
-                        ]}
-                      >
-                        {category}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-              </View>
-
-              <TextInput
-                style={styles.field}
-                value={newDishName}
-                onChangeText={setNewDishName}
-                placeholder="Ny maträtt"
-              />
-
-              <TextInput
-                style={styles.field}
-                value={newDishPrice}
-                onChangeText={setNewDishPrice}
-                keyboardType="decimal-pad"
-                placeholder="Pris i kr"
-              />
-
-              <AppButton
-                title="Lägg till maträtt"
-                onPress={addNewDish}
-              />
-
+)}
               <AppButton
                 title="Logga ut"
                 outline
@@ -2167,15 +1648,8 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
 
 function Header({ onAdminOpen }) {
   return (
-    <Pressable
-      style={styles.header}
-      onPress={onAdminOpen}
-    >
-      <Image
-        source={require('./assets/icon.png')}
-        style={styles.logo}
-      />
-
+    <Pressable style={styles.header} onPress={onAdminOpen}>
+      <Image source={require('./assets/icon.png')} style={styles.logo} />
       <Text style={styles.brand}>
         Husman Lunchrestaurang
       </Text>
@@ -2197,7 +1671,9 @@ function Food({
     <View style={styles.card}>
       <View style={{ flex: 1 }}>
         <Text style={styles.item}>
-          {number ? `${number}. ` : ''}
+          {number
+            ? `${number}. `
+            : ''}
           {name}
         </Text>
 
@@ -2228,7 +1704,8 @@ function AppButton({
       onPress={onPress}
       style={[
         styles.button,
-        outline && styles.buttonOutline,
+        outline &&
+          styles.buttonOutline,
       ]}
     >
       <Text
@@ -2270,19 +1747,6 @@ const styles = StyleSheet.create({
     marginBottom: 9,
   },
 
-  brand: {
-    fontSize: 27,
-    fontWeight: '900',
-    color: BLUE,
-    textAlign: 'center',
-  },
-
-  open: {
-    fontSize: 13,
-    color: '#64788e',
-    marginTop: 6,
-  },
-
   hero: {
     height: 155,
     borderRadius: 20,
@@ -2302,8 +1766,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     padding: 16,
-    backgroundColor:
-      'rgba(5, 33, 62, 0.76)',
+    backgroundColor: 'rgba(5, 33, 62, 0.76)',
   },
 
   heroTitle: {
@@ -2316,6 +1779,27 @@ const styles = StyleSheet.create({
     color: '#eaf5ff',
     marginTop: 4,
     fontWeight: '600',
+  },
+
+  sectionImage: {
+    width: '100%',
+    height: 120,
+    borderRadius: 18,
+    marginBottom: 13,
+    backgroundColor: '#dbe9f5',
+  },
+
+  brand: {
+    fontSize: 27,
+    fontWeight: '900',
+    color: BLUE,
+    textAlign: 'center',
+  },
+
+  open: {
+    fontSize: 13,
+    color: '#64788e',
+    marginTop: 6,
   },
 
   info: {
@@ -2338,46 +1822,32 @@ const styles = StyleSheet.create({
     marginVertical: 12,
   },
 
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-
-  categoryButton: {
-    width: '48%',
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    overflow: 'hidden',
+  categoryScroll: {
     marginBottom: 12,
+  },
+
+  tab: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 22,
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#dce8f4',
+    borderColor: '#d2e2f1',
+    marginRight: 8,
   },
 
-  categoryImage: {
-    width: '100%',
-    height: 100,
-  },
-
-  categoryTitleBox: {
+  tabActive: {
     backgroundColor: BLUE,
-    paddingVertical: 13,
-    paddingHorizontal: 6,
+    borderColor: BLUE,
   },
 
-  categoryTitle: {
+  tabText: {
+    fontWeight: '700',
+    color: '#315574',
+  },
+
+  tabTextActive: {
     color: '#ffffff',
-    fontWeight: '900',
-    fontSize: 17,
-    textAlign: 'center',
-  },
-
-  sectionImage: {
-    width: '100%',
-    height: 120,
-    borderRadius: 18,
-    marginBottom: 13,
-    backgroundColor: '#dbe9f5',
   },
 
   days: {
@@ -2500,35 +1970,6 @@ const styles = StyleSheet.create({
     color: BLUE,
   },
 
-  cartItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderRadius: 14,
-    padding: 13,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#e0eaf4',
-  },
-
-  cartName: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#102b49',
-  },
-
-  cartPrice: {
-    marginTop: 4,
-    color: '#64788e',
-    fontWeight: '700',
-  },
-
-  orderTypeUnderFood: {
-    marginTop: 5,
-    color: BLUE,
-    fontWeight: '900',
-  },
-
   qty: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2569,17 +2010,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#102b49',
     marginBottom: 7,
-    marginTop: 8,
-  },
-
-  field: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#cbdceb',
-    borderRadius: 12,
-    padding: 13,
-    fontSize: 16,
-    marginBottom: 9,
   },
 
   messageInput: {
@@ -2592,6 +2022,16 @@ const styles = StyleSheet.create({
     padding: 13,
     fontSize: 16,
     marginBottom: 12,
+  },
+
+  field: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#cbdceb',
+    borderRadius: 12,
+    padding: 13,
+    fontSize: 16,
+    marginBottom: 9,
   },
 
   pickerButton: {
@@ -2614,36 +2054,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 
-  timeList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 12,
-  },
-
-  timeButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#cbdceb',
-    borderRadius: 10,
-    marginRight: 7,
-    marginBottom: 7,
-  },
-
   timeButtonActive: {
     backgroundColor: BLUE,
     borderColor: BLUE,
   },
 
-  timeButtonText: {
-    color: '#102b49',
+  timeButtonTextActive: {
+    color: '#ffffff',
+    fontSize: 16,
     fontWeight: '700',
   },
 
-  timeButtonTextActive: {
-    color: '#ffffff',
-    fontWeight: '900',
+  empty: {
+    textAlign: 'center',
+    padding: 25,
+    color: '#6b7f91',
   },
 
   adminBox: {
@@ -2652,14 +2077,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: '#eef5fc',
     borderWidth: 1,
-    borderColor: '#cbdceb',
+    borderColor: '#d4e3f1',
   },
 
   adminTitle: {
-    fontSize: 21,
+    fontSize: 20,
     fontWeight: '900',
     color: '#102b49',
-    marginBottom: 12,
+    marginBottom: 10,
   },
 
   adminHeading: {
@@ -2671,59 +2096,42 @@ const styles = StyleSheet.create({
   },
 
   success: {
-    color: '#18743b',
     fontWeight: '900',
-    marginBottom: 10,
+    color: '#167348',
+    marginBottom: 8,
   },
 
   orderCard: {
     backgroundColor: '#ffffff',
-    borderRadius: 13,
-    padding: 13,
-    marginBottom: 11,
     borderWidth: 1,
-    borderColor: '#dce8f4',
+    borderColor: '#d5e4f2',
+    borderRadius: 14,
+    padding: 13,
+    marginBottom: 12,
   },
 
   orderTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '900',
     color: '#102b49',
     marginBottom: 5,
   },
 
-  adminOrderItem: {
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eeeeee',
-  },
-
-  adminFoodName: {
-    fontWeight: '800',
-    color: '#102b49',
-  },
-
-  adminOrderType: {
-    marginTop: 3,
-    color: BLUE,
-    fontWeight: '900',
-  },
-
   orderMessage: {
     marginTop: 8,
     fontWeight: '700',
+    color: '#315574',
   },
 
   orderTotal: {
-    marginTop: 10,
-    fontSize: 17,
+    marginTop: 8,
+    fontSize: 16,
     fontWeight: '900',
+    color: '#102b49',
   },
+});        
+  
+    
 
-  editBox: {
-    backgroundColor: '#f6f8fb',
-    borderRadius: 13,
-    padding: 12,
-    marginVertical: 10,
-  },
-});
+
+              

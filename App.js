@@ -359,11 +359,6 @@ async function addNewDish() {
     [name, price],
   ];
 
-  setFullMenu((old) => ({
-    ...old,
-    [adminCategory]: newItems,
-  }));
-
   const { error } = await supabase
     .from('app_menu')
     .upsert(
@@ -376,10 +371,16 @@ async function addNewDish() {
     return;
   }
 
+  setFullMenu((old) => ({
+    ...old,
+    [adminCategory]: newItems,
+  }));
+
   setNewDishName('');
   setNewDishPrice('');
   Alert.alert('Klart', 'Maträtten är tillagd.');
 }
+
 
   function changeQty(id, amount) {
     setCart((old) =>

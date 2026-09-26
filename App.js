@@ -234,6 +234,7 @@ const [fullMenu, setFullMenu] = useState(MENU);
 const [newDishName, setNewDishName] = useState('');
 const [newDishPrice, setNewDishPrice] = useState('139');
 const [adminMenuMode, setAdminMenuMode] = useState('edit');
+const [newDishCategory, setNewDishCategory] = useState('Pasta');
   const total = useMemo(
     () =>
       cart.reduce(
@@ -250,7 +251,9 @@ const [adminMenuMode, setAdminMenuMode] = useState('edit');
     )?.[1] || 139;
 
   const breakfastNames = new Set(
-    (fullMenu.Frukost || []).map(([name]) => name)
+    (Array.isArray(fullMenu.Frukost) ? fullMenu.Frukost : [])
+      .filter(Array.isArray)
+      .map(([name]) => name)
   );
   const cartHasBreakfast = cart.some((item) =>
     breakfastNames.has(item.name)
@@ -333,47 +336,6 @@ async function loadFullMenu() {
 
 
 
-   async function addNewDish() {
-  const name = newDishName.trim();
-  const price = Number(newDishPrice);
-
-  if (!name || !price) {
-    Alert.alert('Ny maträtt', 'Fyll i maträtt och pris.');
-    return;
-  }
-
-  if (!adminCategory) {
-    Alert.alert('Ny maträtt', 'Välj kategori först.');
-    return;
-  }
-
-  const newItems = [
-    ...(fullMenu[adminCategory] || []),
-    [name, price],
-  ];
-
-  const { error } = await supabase
-    .from('app_menu')
-    .upsert(
-      { section: adminCategory, items: newItems },
-      { onConflict: 'section' }
-    );
-
-  if (error) {
-    console.log(error);
-    Alert.alert('Fel', 'Kunde inte lägga till maträtten.');
-    return;
-  }
-
-  setFullMenu((old) => ({
-    ...old,
-    [adminCategory]: newItems,
-  }));
-
-  setNewDishName('');
-  setNewDishPrice('');
-  Alert.alert('Klart', 'Maträtten är tillagd.');
-}
  function addToCart(name, price, category) {
   setCart((old) => {
     const found = old.find(
@@ -689,26 +651,29 @@ function updateFullMenu(category, newItems) {
     return;
   }
 
-  const newItems = [
-    ...(fullMenu[section] || []),
-    [newDishName.trim(), price],
-  ];
+  const category = newDishCategory;
+  const isLunch = category === 'Lunch';
+  const newItems = isLunch
+    ? [...(weeklyLunch[editDay] || []), newDishName.trim()]
+    : [...(fullMenu[category] || []), [newDishName.trim(), price]];
 
-  setFullMenu((old) => ({
-    ...old,
-    [section]: newItems,
-  }));
-
-  const { error } = await supabase
-    .from('app_menu')
-    .upsert(
-      { section: section, items: newItems },
-      { onConflict: 'section' }
-    );
+  const { error } = isLunch
+    ? await supabase.from('weekly_menu').upsert(
+        { day: editDay, dishes: newItems }, { onConflict: 'day' }
+      )
+    : await supabase.from('app_menu').upsert(
+        { section: category, items: newItems }, { onConflict: 'section' }
+      );
 
   if (error) {
     Alert.alert('Fel', 'Maträtten kunde inte sparas.');
     return;
+  }
+
+  if (isLunch) {
+    setWeeklyLunch((old) => ({ ...old, [editDay]: newItems }));
+  } else {
+    setFullMenu((old) => ({ ...old, [category]: newItems }));
   }
 
   setNewDishName('');
@@ -1079,7 +1044,7 @@ day === item && styles.dayActive,
               )}
             </View>
 
-          {weeklyLunch[day].map(
+          {(weeklyLunch[day] || []).map(
               (name, index) => (
                 <Food
                   key={`${day}-${name}`}
@@ -1255,7 +1220,7 @@ onAdd={() => {
                 mode="date"
                 minimumDate={new Date()}
                 onChange={(_, selected) => {
-                  setShowBookingDatePicker(Platform.OS === 'ios');
+                  setShowBookingDatePicker(false);
                   if (selected) setBookingDate(formatDate(selected));
                 }}
               />
@@ -1527,6 +1492,25 @@ onAdd={() => {
 </View>
          {adminMenuMode === 'add' && (
   <>
+    <Text style={styles.label}>Kategori för ny maträtt</Text>
+    <View style={styles.days}>
+      {CATEGORIES.filter((category) =>
+        category !== 'Boka bord' && category !== 'Catering & Festlokal'
+      ).map((category) => (
+        <TouchableOpacity
+          key={category}
+          onPress={() => setNewDishCategory(category)}
+          style={[styles.day, newDishCategory === category && styles.dayActive]}
+        >
+          <Text style={[styles.dayText, newDishCategory === category && styles.dayTextActive]}>
+            {category}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+    {newDishCategory === 'Lunch' && (
+      <Text style={styles.muted}>Läggs till på {editDay} i veckomenyn.</Text>
+    )}
     <TextInput
       style={styles.field}
       value={newDishName}

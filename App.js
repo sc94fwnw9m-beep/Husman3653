@@ -1654,16 +1654,16 @@ onAdd={() => {
                 title="Spara meny"
                 onPress={
                   saveMenuChanges
-                }
-              />
-)}
+                     }
+/>
+                
               <AppButton
                 title="Logga ut"
                 outline
                 onPress={logout}
               />
             </>
-          )}
+          
         </View>
         )}
       </ScrollView>

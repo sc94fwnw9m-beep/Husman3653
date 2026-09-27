@@ -1,6 +1,7 @@
-   import React, { useEffect, useMemo, useState } from 'react';
+   import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  AppState,
   Image,
   Platform,
   Pressable,
@@ -16,6 +17,7 @@ import { StatusBar } from 'expo-status-bar';
 import { createClient } from '@supabase/supabase-js';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Notifications from 'expo-notifications';
+import { useAudioPlayer } from 'expo-audio';
 const supabaseUrl = 'https://qryynhzavlevuejpdto.s.supabase.co';
 const supabaseKey = 'sb_publishable_-DLe2m1LORuyuro1OkXu0g_M739wwVV';
 
@@ -151,6 +153,9 @@ const formatDate = (date) => {
 const formatTime = (date) => date.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
 
 export default function App() {
+  const orderSound = useAudioPlayer(require('./assets/new-order.wav'));
+  const knownOrderIds = useRef(null);
+  const orderRefreshInProgress = useRef(false);
   const [section, setSection] = useState('Lunch');
    const [expoPushToken, setExpoPushToken] = useState('');
    useEffect(() => {
@@ -292,8 +297,21 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
   }, []);
   useEffect(() => {
     if (admin) {
+      knownOrderIds.current = null;
       loadOrders();
       loadBookings();
+
+      const timer = setInterval(() => {
+        if (AppState.currentState === 'active') loadOrders(true);
+      }, 15000);
+      const foreground = AppState.addEventListener('change', (state) => {
+        if (state === 'active') loadOrders(true);
+      });
+
+      return () => {
+        clearInterval(timer);
+        foreground.remove();
+      };
     }
   }, [admin]);
 useEffect(() => {
@@ -550,12 +568,15 @@ async function logout() {
 
   setAdmin(false);
   setOrders([]);
+  knownOrderIds.current = null;
   setBookings([]);
 }
 
 
 
-  async function loadOrders() {
+  async function loadOrders(silent = false) {
+    if (orderRefreshInProgress.current) return;
+    orderRefreshInProgress.current = true;
     const { data, error } =
       await supabase
         .from('orders')
@@ -564,19 +585,61 @@ async function logout() {
           'created_at',
           { ascending: false }
         );
+    orderRefreshInProgress.current = false;
 
     if (error) {
       console.log(error);
 
-      Alert.alert(
-        'Beställningar',
-        'Kunde inte hämta beställningar.'
-      );
+      if (!silent) {
+        Alert.alert(
+          'Beställningar',
+          'Kunde inte hämta beställningar.'
+        );
+      }
 
       return;
     }
 
-    setOrders(data || []);
+    const latest = data || [];
+    const ids = new Set(latest.map((order) => String(order.id)));
+    if (knownOrderIds.current !== null && latest.some(
+      (order) => !knownOrderIds.current.has(String(order.id))
+    )) {
+      orderSound.seekTo(0).then(() => orderSound.play()).catch((soundError) => {
+        console.log('Orderljudet kunde inte spelas:', soundError);
+      });
+    }
+    knownOrderIds.current = ids;
+    setOrders(latest);
+  }
+
+  function confirmDeleteOrder(order) {
+    if (order.status !== 'Maten färdig') return;
+    Alert.alert(
+      'Radera beställning?',
+      `Beställning #${order.id} tas bort permanent.`,
+      [
+        { text: 'Avbryt', style: 'cancel' },
+        {
+          text: 'Radera',
+          style: 'destructive',
+          onPress: async () => {
+            const { data, error } = await supabase
+              .from('orders')
+              .delete()
+              .eq('id', order.id)
+              .eq('status', 'Maten färdig')
+              .select('id');
+            if (error || !data?.length) {
+              Alert.alert('Fel', 'Beställningen kunde inte raderas.');
+              return;
+            }
+            knownOrderIds.current?.delete(String(order.id));
+            setOrders((current) => current.filter((item) => item.id !== order.id));
+          },
+        },
+      ]
+    );
   }
 
   async function loadBookings() {
@@ -1543,6 +1606,13 @@ onAdd={() => {
                       onPress={() =>
                         foodReady(order)
                       }
+                    />
+                  )}
+                  {order.status === 'Maten färdig' && (
+                    <AppButton
+                      title="Radera beställning"
+                      outline
+                      onPress={() => confirmDeleteOrder(order)}
                     />
                   )}
                 </View>

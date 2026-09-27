@@ -16,7 +16,6 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { createClient } from '@supabase/supabase-js';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useAudioPlayer } from 'expo-audio';
 
 const supabaseUrl = 'https://ujmfvlktaxhefrqzkmdl.supabase.co';
 const supabaseKey =
@@ -225,7 +224,6 @@ const [fullMenu, setFullMenu] = useState(MENU);
     useState([]);
   const knownOrderIds = useRef(null);
   const loadingOrders = useRef(false);
-  const orderSound = useAudioPlayer(require('./assets/new-order.wav'));
   const [bookings, setBookings] = useState([]);
 
   // Ändra lunchmeny
@@ -269,14 +267,6 @@ const [fullMenu, setFullMenu] = useState(MENU);
    useEffect(() => {
       loadWeeklyMenu();
     loadFullMenu();
-    const channel = supabase.channel('husman-menu-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'weekly_menu' }, () => {
-        if (!adminActive.current) loadWeeklyMenu();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_menu' }, () => {
-        if (!adminActive.current) loadFullMenu();
-      })
-      .subscribe();
     const refreshMenu = () => {
       if (AppState.currentState === 'active' && !adminActive.current) {
         loadWeeklyMenu();
@@ -290,7 +280,6 @@ const [fullMenu, setFullMenu] = useState(MENU);
     return () => {
       clearInterval(timer);
       foreground.remove();
-      supabase.removeChannel(channel);
     };
   }, []);
   useEffect(() => {
@@ -588,8 +577,10 @@ async function logout() {
       (order) => !knownOrderIds.current.has(String(order.id))
     )) {
       try {
-        await orderSound.seekTo(0);
-        orderSound.play();
+        const { createAudioPlayer } = require('expo-audio');
+        const player = createAudioPlayer(require('./assets/new-order.wav'));
+        player.play();
+        setTimeout(() => player.remove(), 2000);
       } catch (soundError) {
         console.log('Orderljudet kunde inte spelas:', soundError);
       }

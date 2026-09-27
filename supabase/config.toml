@@ -1,0 +1,3 @@
+[functions.order-ready-push]
+verify_jwt = false
+

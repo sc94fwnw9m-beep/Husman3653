@@ -1,6 +1,7 @@
    import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
+  AppState,
   Image,
   Platform,
   Pressable,
@@ -331,9 +332,29 @@ useEffect(() => {
         loadFullMenu();
       }
     )
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'weekly_menu',
+      },
+      () => {
+        loadWeeklyMenu();
+      }
+    )
     .subscribe();
 
+  // Läs även om menyn när kunden återvänder till appen efter en paus.
+  const appStateSubscription = AppState.addEventListener('change', (state) => {
+    if (state === 'active') {
+      loadWeeklyMenu();
+      loadFullMenu();
+    }
+  });
+
   return () => {
+    appStateSubscription.remove();
     supabase.removeChannel(channel);
   };
 }, []);

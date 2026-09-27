@@ -15,7 +15,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { createClient } from '@supabase/supabase-js';
 import DateTimePicker from '@react-native-community/datetimepicker';
-
+import * as Notifications from 'expo-notifications';
 const supabaseUrl = 'https://ujmfvlktaxhefrqzkmdl.supabase.co';
 const supabaseKey =
   'sb_publishable_zcu1n20SXR7xlizKMHWHgw_I1jNK7JS';
@@ -153,6 +153,34 @@ const formatTime = (date) => date.toLocaleTimeString('sv-SE', { hour: '2-digit',
 
 export default function App() {
   const [section, setSection] = useState('Lunch');
+   const [expoPushToken, setExpoPushToken] = useState('');
+   useEffect(() => {
+  async function registerForPushNotifications() {
+    try {
+      const { status: existingStatus } =
+        await Notifications.getPermissionsAsync();
+
+      let finalStatus = existingStatus;
+
+      if (existingStatus !== 'granted') {
+        const { status } =
+          await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+
+      if (finalStatus !== 'granted') {
+        return;
+      }
+
+      const token = await Notifications.getExpoPushTokenAsync();
+      setExpoPushToken(token.data);
+    } catch (error) {
+      console.log('Push notification error:', error);
+    }
+  }
+
+  registerForPushNotifications();
+}, []);
   const [day, setDay] = useState(() => {
     const days = ['Söndag', 'Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag'];
     const today = days[new Date().getDay()];
@@ -423,6 +451,7 @@ async function loadFullMenu() {
         pickup_time: orderTime.trim(),
 
         order_type: orderType,
+         push_token: expoPushToken,
         created_at: new Date().toISOString(),
       });
 
@@ -578,13 +607,35 @@ async function logout() {
       return;
     }
 
-    Alert.alert(
-      'Klart',
-      'Beställningen är markerad som Maten färdig.'
-    );
+   
+Alert.alert(
+  'Klart',
+  'Beställningen är markerad som Maten färdig.'
+);
 
-    loadOrders();
+if (order.push_token) {
+  try {
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: order.push_token,
+        sound: 'default',
+        title: 'Husman Lunchrestaurang',
+        body: 'Din mat är färdig!',
+      }),
+    });
+  } catch (pushError) {
+    console.log('Push kunde inte skickas:', pushError);
   }
+}
+
+loadOrders();
+}
+
 
   function openDayForEditing(selectedDay) {
     const dishes =
@@ -679,6 +730,49 @@ function updateFullMenu(category, newItems) {
   setNewDishPrice('139');
 
   Alert.alert('Klart', 'Den nya maträtten är tillagd.');
+}
+   async function deleteDish(category, index) {
+  const isLunch = category === 'Lunch';
+
+  const newItems = isLunch
+    ? [...(weeklyLunch[editDay] || [])]
+    : [...(fullMenu[category] || [])];
+
+  newItems.splice(index, 1);
+
+  const { error } = isLunch
+    ? await supabase
+        .from('weekly_menu')
+        .upsert(
+          { day: editDay, dishes: newItems },
+          { onConflict: 'day' }
+        )
+    : await supabase
+        .from('app_menu')
+        .upsert(
+          { section: category, items: newItems },
+          { onConflict: 'section' }
+        );
+
+  if (error) {
+    console.log(error);
+    Alert.alert('Fel', 'Maträtten kunde inte raderas.');
+    return;
+  }
+
+  if (isLunch) {
+    setWeeklyLunch((old) => ({
+      ...old,
+      [editDay]: newItems,
+    }));
+  } else {
+    setFullMenu((old) => ({
+      ...old,
+      [category]: newItems,
+    }));
+  }
+
+  Alert.alert('Klart', 'Maträtten är raderad.');
 }
     if (showCart) {
     return (
@@ -1631,7 +1725,11 @@ onAdd={() => {
                 }
                 placeholder="Maträtt 1"
               />
-
+<AppButton
+  title="Radera maträtt 1"
+  outline
+  onPress={() => deleteDish('Lunch', 0)}
+/>
               <TextInput
                 style={styles.field}
                 value={editDish2}
@@ -1640,7 +1738,11 @@ onAdd={() => {
                 }
                 placeholder="Maträtt 2"
               />
-
+<AppButton
+  title="Radera maträtt 2"
+  outline
+  onPress={() => deleteDish('Lunch', 1)}
+/>
               <TextInput
                 style={styles.field}
                 value={editDish3}
@@ -1649,7 +1751,11 @@ onAdd={() => {
                 }
                 placeholder="Maträtt 3"
               />
-
+<AppButton
+  title="Radera maträtt 3"
+  outline
+  onPress={() => deleteDish('Lunch', 2)}
+/>
               <AppButton
                 title="Spara meny"
                 onPress={

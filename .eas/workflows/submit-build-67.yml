@@ -1,0 +1,10 @@
+name: Submit iOS build 67 to TestFlight
+on:
+  push:
+    branches: ['submit-build-67']
+jobs:
+  submit_ios:
+    type: submit
+    params:
+      build_id: 344508a8-b73d-4112-b31f-cca78f531149
+      profile: production

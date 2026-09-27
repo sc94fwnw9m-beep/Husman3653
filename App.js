@@ -1663,7 +1663,7 @@ onAdd={() => {
                 onPress={logout}
               />
             </>
-          
+          )}
         </View>
         )}
       </ScrollView>

@@ -1,6 +1,7 @@
-   import React, { useEffect, useMemo, useState } from 'react';
+   import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  AppState,
   Image,
   Platform,
   Pressable,
@@ -15,6 +16,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { createClient } from '@supabase/supabase-js';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useAudioPlayer } from 'expo-audio';
 
 const supabaseUrl = 'https://ujmfvlktaxhefrqzkmdl.supabase.co';
 const supabaseKey =
@@ -128,6 +130,9 @@ const CATEGORIES = [
   'Catering & Festlokal',
   'Boka bord',
 ];
+const ADMIN_CATEGORIES = CATEGORIES.filter(
+  (category) => !['Catering & Festlokal', 'Boka bord', 'Frukost', 'Frysta matlådor'].includes(category)
+);
 
 const FOOD_IMAGES = {
   Lunch: 'https://images.openai.com/static-rsc-4/Ge8HQDgbjswNeqFO9paYGYcAlsMvFjax_G5Ep-75fWiBghCT0q2TwArH1Gjuu-EIIELhLLThS-UqJDYGQY2JVA85TdmpLh6MQgf_oU24vGA4POHuuTdbFBAMAX_9cH7jv6z4mCwWuw2nElFPYfPbkE5_Ybrnxsj6oIPHr3MNIHuEPazA6Cu87ZrXnN-rYPh4?purpose=fullsize',
@@ -207,6 +212,7 @@ const [fullMenu, setFullMenu] = useState(MENU);
   // Admin
   const [admin, setAdmin] =
     useState(false);
+  const adminActive = useRef(false);
 
   const [adminEmail, setAdminEmail] =
     useState('');
@@ -217,6 +223,9 @@ const [fullMenu, setFullMenu] = useState(MENU);
 
   const [orders, setOrders] =
     useState([]);
+  const knownOrderIds = useRef(null);
+  const loadingOrders = useRef(false);
+  const orderSound = useAudioPlayer(require('./assets/new-order.wav'));
   const [bookings, setBookings] = useState([]);
 
   // Ändra lunchmeny
@@ -231,6 +240,9 @@ const [fullMenu, setFullMenu] = useState(MENU);
 
   const [editDish3, setEditDish3] =
     useState('');
+  const [newDishCategory, setNewDishCategory] = useState('Lunch');
+  const [newDishName, setNewDishName] = useState('');
+  const [newDishPrice, setNewDishPrice] = useState('139');
 
   const total = useMemo(
     () =>
@@ -257,11 +269,46 @@ const [fullMenu, setFullMenu] = useState(MENU);
    useEffect(() => {
       loadWeeklyMenu();
     loadFullMenu();
+    const channel = supabase.channel('husman-menu-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'weekly_menu' }, () => {
+        if (!adminActive.current) loadWeeklyMenu();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_menu' }, () => {
+        if (!adminActive.current) loadFullMenu();
+      })
+      .subscribe();
+    const refreshMenu = () => {
+      if (AppState.currentState === 'active' && !adminActive.current) {
+        loadWeeklyMenu();
+        loadFullMenu();
+      }
+    };
+    const timer = setInterval(refreshMenu, 15000);
+    const foreground = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refreshMenu();
+    });
+    return () => {
+      clearInterval(timer);
+      foreground.remove();
+      supabase.removeChannel(channel);
+    };
   }, []);
   useEffect(() => {
+    adminActive.current = admin;
     if (admin) {
+      knownOrderIds.current = null;
       loadOrders();
       loadBookings();
+      const timer = setInterval(() => {
+        if (AppState.currentState === 'active') loadOrders(true);
+      }, 15000);
+      const subscription = AppState.addEventListener('change', (state) => {
+        if (state === 'active') loadOrders(true);
+      });
+      return () => {
+        clearInterval(timer);
+        subscription.remove();
+      };
     }
   }, [admin]);
 
@@ -309,7 +356,7 @@ async function loadFullMenu() {
 
   Alert.alert('Klart', `${section} är uppdaterad.`);
 }  
-  function addToCart(name, price) {
+  function addToCart(name, price, isLunch = false) {
     setCart((old) => {
       const found = old.find(
         (item) =>
@@ -335,6 +382,8 @@ async function loadFullMenu() {
           name,
           price,
           qty: 1,
+          isLunch,
+          note: '',
         },
       ];
     });
@@ -353,6 +402,20 @@ async function loadFullMenu() {
         )
         .filter((item) => item.qty > 0)
     );
+  }
+
+  function selectOrderType(name) {
+    const price = ORDER_TYPES.find(([type]) => type === name)?.[1] || 139;
+    setOrderType(name);
+    setCart((old) => old.map((item) =>
+      item.isLunch ? { ...item, price } : item
+    ));
+  }
+
+  function changeItemNote(id, note) {
+    setCart((old) => old.map((item) =>
+      item.id === id ? { ...item, note } : item
+    ));
   }
 
   async function sendOrder() {
@@ -492,12 +555,15 @@ async function logout() {
 
   setAdmin(false);
   setOrders([]);
+  knownOrderIds.current = null;
   setBookings([]);
 }
 
 
 
-  async function loadOrders() {
+  async function loadOrders(silent = false) {
+    if (loadingOrders.current) return;
+    loadingOrders.current = true;
     const { data, error } =
       await supabase
         .from('orders')
@@ -506,19 +572,47 @@ async function logout() {
           'created_at',
           { ascending: false }
         );
+    loadingOrders.current = false;
 
     if (error) {
       console.log(error);
 
-      Alert.alert(
-        'Beställningar',
-        'Kunde inte hämta beställningar.'
-      );
+      if (!silent) Alert.alert('Beställningar', 'Kunde inte hämta beställningar.');
 
       return;
     }
 
-    setOrders(data || []);
+    const nextOrders = data || [];
+    const nextIds = new Set(nextOrders.map((order) => String(order.id)));
+    if (knownOrderIds.current !== null && nextOrders.some(
+      (order) => !knownOrderIds.current.has(String(order.id))
+    )) {
+      try {
+        await orderSound.seekTo(0);
+        orderSound.play();
+      } catch (soundError) {
+        console.log('Orderljudet kunde inte spelas:', soundError);
+      }
+    }
+    knownOrderIds.current = nextIds;
+    setOrders(nextOrders);
+  }
+
+  function deleteCompletedOrder(order) {
+    if (order.status !== 'Maten färdig') return;
+    Alert.alert('Radera beställning?', `Beställning #${order.id} tas bort.`, [
+      { text: 'Avbryt', style: 'cancel' },
+      { text: 'Radera', style: 'destructive', onPress: async () => {
+        const { data, error } = await supabase.from('orders')
+          .delete().eq('id', order.id).eq('status', 'Maten färdig').select('id');
+        if (error || !data?.length) {
+          Alert.alert('Fel', 'Beställningen kunde inte raderas.');
+          return;
+        }
+        knownOrderIds.current?.delete(String(order.id));
+        setOrders((old) => old.filter((item) => item.id !== order.id));
+      } },
+    ]);
   }
 
   async function loadBookings() {
@@ -580,7 +674,9 @@ async function logout() {
       editDish1.trim(),
       editDish2.trim(),
       editDish3.trim(),
-    ].filter(Boolean);
+    ].filter(Boolean).concat(
+      (weeklyLunch[editDay] || []).slice(3).map((dish) => dish.trim()).filter(Boolean)
+    );
 
     setWeeklyLunch((old) => ({
       ...old,
@@ -607,6 +703,52 @@ function updateFullMenu(category, newItems) {
     [category]: newItems,
   }));
 }
+
+async function addDish() {
+  const name = newDishName.trim();
+  if (!name) return Alert.alert('Maträtt', 'Skriv maträttens namn.');
+  const isLunch = newDishCategory === 'Lunch';
+  const price = Number(newDishPrice.replace(',', '.'));
+  if (!isLunch && (!Number.isFinite(price) || price <= 0)) {
+    return Alert.alert('Maträtt', 'Skriv ett giltigt pris.');
+  }
+  const items = isLunch
+    ? [...(weeklyLunch[editDay] || []), name]
+    : [...(fullMenu[newDishCategory] || []), [name, price]];
+  const { error } = isLunch
+    ? await supabase.from('weekly_menu').upsert(
+      { day: editDay, dishes: items }, { onConflict: 'day' })
+    : await supabase.from('app_menu').upsert(
+      { section: newDishCategory, items }, { onConflict: 'section' });
+  if (error) return Alert.alert('Fel', 'Maträtten kunde inte sparas.');
+  if (isLunch) setWeeklyLunch((old) => ({ ...old, [editDay]: items }));
+  else setFullMenu((old) => ({ ...old, [newDishCategory]: items }));
+  setNewDishName('');
+  Alert.alert('Klart', 'Maträtten är tillagd.');
+}
+
+function deleteDish(category, index) {
+  Alert.alert('Radera maträtt?', 'Maträtten tas bort från kundernas meny.', [
+    { text: 'Avbryt', style: 'cancel' },
+    { text: 'Radera', style: 'destructive', onPress: async () => {
+      const isLunch = category === 'Lunch';
+      const items = [...(isLunch ? weeklyLunch[editDay] : fullMenu[category])];
+      items.splice(index, 1);
+      const { error } = isLunch
+        ? await supabase.from('weekly_menu').upsert(
+          { day: editDay, dishes: items }, { onConflict: 'day' })
+        : await supabase.from('app_menu').upsert(
+          { section: category, items }, { onConflict: 'section' });
+      if (error) return Alert.alert('Fel', 'Maträtten kunde inte raderas.');
+      if (isLunch) {
+        setWeeklyLunch((old) => ({ ...old, [editDay]: items }));
+        setEditDish1(items[0] || '');
+        setEditDish2(items[1] || '');
+        setEditDish3(items[2] || '');
+      } else setFullMenu((old) => ({ ...old, [category]: items }));
+    } },
+  ]);
+}
     if (showCart) {
     return (
       <SafeAreaView style={styles.page}>
@@ -631,7 +773,7 @@ function updateFullMenu(category, newItems) {
             cart.map((item) => (
               <View
                 key={item.id}
-                style={styles.card}
+                style={[styles.card, { flexWrap: 'wrap' }]}
               >
                 <View style={{ flex: 1 }}>
                   <Text style={styles.item}>
@@ -687,6 +829,12 @@ function updateFullMenu(category, newItems) {
                     </Text>
                   </TouchableOpacity>
                 </View>
+                <TextInput
+                  style={[styles.field, { width: '100%', marginTop: 10 }]}
+                  value={item.note || ''}
+                  onChangeText={(text) => changeItemNote(item.id, text)}
+                  placeholder="Meddelande om denna maträtt"
+                />
               </View>
             ))
           )}
@@ -702,7 +850,7 @@ function updateFullMenu(category, newItems) {
                 {ORDER_TYPES.map(([name, price]) => (
                   <TouchableOpacity
                     key={name}
-                    onPress={() => setOrderType(name)}
+                    onPress={() => selectOrderType(name)}
                     style={[
                       styles.type,
                       orderType === name && styles.typeActive,
@@ -936,40 +1084,6 @@ day === item && styles.dayActive,
               ))}
             </View>
 
-            <Text style={styles.label}>
-              Välj:
-            </Text>
-
-            <View style={styles.types}>
-              {ORDER_TYPES.map(
-                ([name, price]) => (
-                  <TouchableOpacity
-                    key={name}
-                    onPress={() =>
-                      setOrderType(name)
-                    }
-                    style={[
-                      styles.type,
-                      orderType === name &&
-                        styles.typeActive,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.typeText,
-                        orderType === name &&
-                          styles.typeTextActive,
-                      ]}
-                    >
-                      {name}
-                      {'\n'}
-                      {price} kr
-                    </Text>
-                  </TouchableOpacity>
-                )
-              )}
-            </View>
-
           {weeklyLunch[day].map(
               (name, index) => (
                 <Food
@@ -989,7 +1103,7 @@ onAdd={() => {
     return;
   }
 
-  addToCart(name, lunchPrice);
+  addToCart(name, lunchPrice, true);
 }}
                 />
               )
@@ -1339,6 +1453,7 @@ onAdd={() => {
                         >
                           • {item.qty} ×{' '}
                           {item.name}
+                          {!!item.note && ` — ${item.note}`}
                         </Text>
                       )
                     )}
@@ -1372,6 +1487,13 @@ onAdd={() => {
                       }
                     />
                   )}
+                  {order.status === 'Maten färdig' && (
+                    <AppButton
+                      title="Radera beställning"
+                      outline
+                      onPress={() => deleteCompletedOrder(order)}
+                    />
+                  )}
                 </View>
               ))}
 
@@ -1403,7 +1525,7 @@ onAdd={() => {
 <Text style={styles.adminHeading}>
   Ändra övriga maträtter
 </Text>
-           {CATEGORIES.filter((category) => category !== 'Lunch' && category !== 'Boka bord').map((category) => (
+           {ADMIN_CATEGORIES.filter((category) => category !== 'Lunch').map((category) => (
   <AppButton
     key={category}
     title={`Ändra ${category}`}
@@ -1436,6 +1558,7 @@ onAdd={() => {
         }}
         placeholder="Pris"
       />
+      <AppButton title="Radera maträtt" outline onPress={() => deleteDish(section, index)} />
     </View>
   ))
 }{section !== 'Lunch' && section !== 'Boka bord' && (
@@ -1504,12 +1627,60 @@ onAdd={() => {
                 placeholder="Maträtt 3"
               />
 
-              <AppButton
-                title="Spara meny"
-                onPress={
-                  saveMenuChanges
-                }
+              {(weeklyLunch[editDay] || []).slice(3).map((dish, extraIndex) => (
+                <TextInput
+                  key={`${editDay}-extra-${extraIndex}`}
+                  style={styles.field}
+                  value={dish}
+                  onChangeText={(text) => setWeeklyLunch((old) => {
+                    const dishes = [...old[editDay]];
+                    dishes[extraIndex + 3] = text;
+                    return { ...old, [editDay]: dishes };
+                  })}
+                  placeholder={`Maträtt ${extraIndex + 4}`}
+                />
+              ))}
+
+              <AppButton title="Spara meny" onPress={saveMenuChanges} />
+
+              {(weeklyLunch[editDay] || []).map((dish, index) => (
+                <View key={`${editDay}-${index}-delete`}>
+                  <Text>{index + 1}. {dish}</Text>
+                  <AppButton title="Radera maträtt" outline onPress={() => deleteDish('Lunch', index)} />
+                </View>
+              ))}
+
+              <Text style={styles.adminHeading}>Lägg till maträtt</Text>
+              <View style={styles.days}>
+                {ADMIN_CATEGORIES.map((category) => (
+                  <TouchableOpacity
+                    key={`new-${category}`}
+                    onPress={() => setNewDishCategory(category)}
+                    style={[styles.day, newDishCategory === category && styles.dayActive]}
+                  >
+                    <Text style={[styles.dayText, newDishCategory === category && styles.dayTextActive]}>
+                      {category}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {newDishCategory === 'Lunch' && <Text>Dag: {editDay}</Text>}
+              <TextInput
+                style={styles.field}
+                value={newDishName}
+                onChangeText={setNewDishName}
+                placeholder="Ny maträtt"
               />
+              {newDishCategory !== 'Lunch' && (
+                <TextInput
+                  style={styles.field}
+                  value={newDishPrice}
+                  onChangeText={setNewDishPrice}
+                  keyboardType="decimal-pad"
+                  placeholder="Pris i kr"
+                />
+              )}
+              <AppButton title="Lägg till maträtt" onPress={addDish} />
 
               <AppButton
                 title="Logga ut"

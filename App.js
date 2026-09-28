@@ -292,9 +292,25 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
   );
 
    useEffect(() => {
-      loadWeeklyMenu();
-    loadFullMenu();
-  }, []);
+    if (admin) return;
+    loadPublishedMenu();
+    const channel = supabase
+      .channel('menu-items-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'menu_items' },
+        () => loadPublishedMenu())
+      .subscribe();
+    const timer = setInterval(() => {
+      if (AppState.currentState === 'active') loadPublishedMenu();
+    }, 30000);
+    const foreground = AppState.addEventListener('change', (state) => {
+      if (state === 'active') loadPublishedMenu();
+    });
+    return () => {
+      clearInterval(timer);
+      foreground.remove();
+      supabase.removeChannel(channel);
+    };
+  }, [admin]);
   useEffect(() => {
     if (admin) {
       knownOrderIds.current = null;
@@ -314,71 +330,77 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
       };
     }
   }, [admin]);
-useEffect(() => {
-  const channel = supabase
-    .channel('app-menu-realtime')
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'app_menu',
-      },
-      () => {
-        loadFullMenu();
+async function loadPublishedMenu() {
+  const { data, error } = await supabase
+    .from('menu_items')
+    .select('category,day,name,price,active')
+    .order('id', { ascending: true });
+
+  if (error) {
+    console.log('Menyn kunde inte hämtas:', error);
+    return;
+  }
+
+  const lunch = { ...DEFAULT_LUNCH };
+  const full = { ...MENU };
+  const seenDays = new Set();
+  const seenCategories = new Set();
+
+  for (const row of data || []) {
+    if (row.category === 'Lunch' && row.day in DEFAULT_LUNCH) {
+      if (!seenDays.has(row.day)) {
+        lunch[row.day] = [];
+        seenDays.add(row.day);
       }
-    )
-    .subscribe();
-
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, []);
-  async function loadWeeklyMenu() {
-    const { data, error } = await supabase
-      .from('weekly_menu')
-      .select('day,dishes');
-
-    if (!error && data?.length) {
-      const savedMenu = data.reduce((result, row) => ({
-        ...result,
-        [row.day]: Array.isArray(row.dishes) ? row.dishes : [],
-      }), {});
-      setWeeklyLunch((old) => ({ ...old, ...savedMenu }));
+      if (row.active !== false && row.name) lunch[row.day].push(row.name);
+    } else if (Object.prototype.hasOwnProperty.call(MENU, row.category)) {
+      if (!seenCategories.has(row.category)) {
+        full[row.category] = [];
+        seenCategories.add(row.category);
+      }
+      if (row.active !== false && row.name) {
+        full[row.category].push([row.name, Number(row.price) || 139]);
+      }
     }
   }
-async function loadFullMenu() {
-  const { data, error } = await supabase
-    .from('app_menu')
-    .select('section,items');
 
-  if (!error && data?.length) {
-    const savedMenu = data.reduce((result, row) => ({
-      ...result,
-      [row.section]: Array.isArray(row.items) ? row.items : [],
-    }), {});
+  setWeeklyLunch(lunch);
+  setFullMenu(full);
+ }
 
-    setFullMenu((old) => ({ ...old, ...savedMenu }));
-  }
-}
+ async function publishMenuSection(category, day, items) {
+  const { error: deleteError } = await supabase
+    .from('menu_items')
+    .delete()
+    .eq('category', category)
+    .eq('day', day);
+  if (deleteError) return deleteError;
+
+  const rows = items.length
+    ? items.map((item) => ({
+        category,
+        day,
+        name: category === 'Lunch' ? item : item[0],
+        price: category === 'Lunch' ? 139 : Number(item[1]),
+        active: true,
+      }))
+    : [{ category, day, name: '', price: 0, active: false }];
+
+  const { error } = await supabase.from('menu_items').insert(rows);
+  return error;
+ }
+
  async function saveFullMenu(section) {
   const items = fullMenu[section] || [];
-
-  const { error } = await supabase
-    .from('app_menu')
-    .upsert(
-      { section: section, items: items },
-      { onConflict: 'section' }
-    );
+  const error = await publishMenuSection(section, '', items);
 
   if (error) {
     Alert.alert('Fel', 'Kunde inte spara ändringarna.');
     return;
   }
 
-  Alert.alert('Klart', `${section} är uppdaterad.`);
-}
-
+  Alert.alert('Klart', `${section} är uppdaterad för alla kunder.`);
+ }
 
  function selectOrderType(name) {
   const selectedPrice = ORDER_TYPES.find(([type]) => type === name)?.[1];
@@ -741,24 +763,14 @@ loadOrders();
       editDish3.trim(),
     ].filter(Boolean);
 
-    setWeeklyLunch((old) => ({
-      ...old,
-      [editDay]: newDishes,
-    }));
-
-    const { error } = await supabase
-      .from('weekly_menu')
-      .upsert({ day: editDay, dishes: newDishes }, { onConflict: 'day' });
-
+    const error = await publishMenuSection('Lunch', editDay, newDishes);
     if (error) {
-      Alert.alert('Meny', 'Menyn ändrades på mobilen men kunde inte publiceras till alla kunder.');
+      Alert.alert('Meny', 'Menyn kunde inte publiceras till kunderna.');
       return;
     }
 
-    Alert.alert(
-      'Meny publicerad',
-      `${editDay} är uppdaterad för alla kunder.`
-    );
+    setWeeklyLunch((old) => ({ ...old, [editDay]: newDishes }));
+    Alert.alert('Meny publicerad', `${editDay} är uppdaterad för alla kunder.`);
   }
 function updateFullMenu(category, newItems) {
   setFullMenu((old) => ({
@@ -785,13 +797,9 @@ function updateFullMenu(category, newItems) {
     ? [...(weeklyLunch[editDay] || []), newDishName.trim()]
     : [...(fullMenu[category] || []), [newDishName.trim(), price]];
 
-  const { error } = isLunch
-    ? await supabase.from('weekly_menu').upsert(
-        { day: editDay, dishes: newItems }, { onConflict: 'day' }
-      )
-    : await supabase.from('app_menu').upsert(
-        { section: category, items: newItems }, { onConflict: 'section' }
-      );
+  const error = await publishMenuSection(
+    category, isLunch ? editDay : '', newItems
+  );
 
   if (error) {
     Alert.alert('Fel', 'Maträtten kunde inte sparas.');
@@ -818,19 +826,9 @@ function updateFullMenu(category, newItems) {
 
   newItems.splice(index, 1);
 
-  const { error } = isLunch
-    ? await supabase
-        .from('weekly_menu')
-        .upsert(
-          { day: editDay, dishes: newItems },
-          { onConflict: 'day' }
-        )
-    : await supabase
-        .from('app_menu')
-        .upsert(
-          { section: category, items: newItems },
-          { onConflict: 'section' }
-        );
+  const error = await publishMenuSection(
+    category, isLunch ? editDay : '', newItems
+  );
 
   if (error) {
     console.log(error);

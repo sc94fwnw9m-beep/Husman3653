@@ -380,12 +380,26 @@ async function loadFullMenu() {
 }
 
 
- function addToCart(name, price, category) {
+ function selectOrderType(name) {
+  const selectedPrice = ORDER_TYPES.find(([type]) => type === name)?.[1];
+  if (selectedPrice == null) return;
+  setCart((old) => old.map((item) =>
+    ['Frukost', 'Frysta matlådor'].includes(item.category)
+      ? item
+      : { ...item, price: Number(item.basePrice ?? item.price) + selectedPrice - 139 }
+  ));
+  setOrderType(name);
+ }
+
+ function addToCart(name, basePrice, category) {
+  const price = ['Frukost', 'Frysta matlådor'].includes(category)
+    ? Number(basePrice)
+    : Number(basePrice) + lunchPrice - 139;
   setCart((old) => {
     const found = old.find(
       (item) =>
         item.name === name &&
-        item.price === price &&
+        Number(item.basePrice ?? item.price) === Number(basePrice) &&
         item.category === category
     );
 
@@ -404,6 +418,7 @@ async function loadFullMenu() {
         id: Date.now() + Math.random(),
         name,
         price,
+        basePrice: Number(basePrice),
         category,
         qty: 1,
       },
@@ -931,7 +946,7 @@ function updateFullMenu(category, newItems) {
                 {ORDER_TYPES.map(([name, price]) => (
                   <TouchableOpacity
                     key={name}
-                    onPress={() => setOrderType(name)}
+                    onPress={() => selectOrderType(name)}
                     style={[
                       styles.type,
                       orderType === name && styles.typeActive,
@@ -1078,8 +1093,7 @@ function updateFullMenu(category, newItems) {
 
         <View style={styles.info}>
           <Text style={styles.infoText}>
-            Lunch 139 kr • Pensionär 129 kr • Mat för avhämtning 129 kr • Endast matlåda 119 kr
-            {'\n'}Inkl. smör, bröd, dryck, kaffe, hembakt bröd, salladsbuffé, te, kaka och soppa
+            Inkl. smör, bröd, dryck, kaffe, hembakt bröd, salladsbuffé, te, kaka och soppa
             {'\n'}Lunchhäfte: köp 10 luncher – 11:e lunchen gratis
           </Text>
         </View>
@@ -1175,7 +1189,7 @@ day === item && styles.dayActive,
                   <TouchableOpacity
                     key={name}
                     onPress={() =>
-                      setOrderType(name)
+                      selectOrderType(name)
                     }
                     style={[
                       styles.type,
@@ -1218,7 +1232,7 @@ onAdd={() => {
     return;
   }
 
-  addToCart(name, lunchPrice, 'Lunch');
+  addToCart(name, 139, 'Lunch');
 }}
                 />
               )

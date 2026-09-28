@@ -382,25 +382,40 @@ async function loadPublishedMenu() {
  }
 
  async function publishMenuSection(category, day, items) {
-  const { error: deleteError } = await supabase
+  // Keep existing rows until each replacement has been saved successfully.
+  // Inactive rows remain in the database and can be recovered if needed.
+  const { data: existing, error: readError } = await supabase
     .from('menu_items')
-    .delete()
+    .select('id')
     .eq('category', category)
-    .eq('day', day);
-  if (deleteError) return deleteError;
+    .eq('day', day)
+    .order('id', { ascending: true });
+  if (readError) return readError;
 
-  const rows = items.length
-    ? items.map((item) => ({
-        category,
-        day,
-        name: category === 'Lunch' ? item : item[0],
-        price: category === 'Lunch' ? 139 : Number(item[1]),
-        active: true,
-      }))
-    : [{ category, day, name: '', price: 0, active: false }];
+  const rows = items.map((item) => ({
+    category,
+    day,
+    name: category === 'Lunch' ? item : item[0],
+    price: category === 'Lunch' ? 139 : Number(item[1]),
+    active: true,
+  }));
 
-  const { error } = await supabase.from('menu_items').insert(rows);
-  return error;
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = existing?.[index];
+    const result = row
+      ? await supabase.from('menu_items').update(rows[index]).eq('id', row.id).select('id')
+      : await supabase.from('menu_items').insert(rows[index]).select('id');
+    if (result.error) return result.error;
+    if (!result.data?.length) return new Error('Saknar behörighet att spara menyn.');
+  }
+
+  for (const row of (existing || []).slice(rows.length)) {
+    const { data, error } = await supabase.from('menu_items')
+      .update({ active: false }).eq('id', row.id).select('id');
+    if (error) return error;
+    if (!data?.length) return new Error('Saknar behörighet att uppdatera menyn.');
+  }
+  return null;
  }
 
  async function saveFullMenu(section) {
@@ -419,17 +434,15 @@ async function loadPublishedMenu() {
   const selectedPrice = ORDER_TYPES.find(([type]) => type === name)?.[1];
   if (selectedPrice == null) return;
   setCart((old) => old.map((item) =>
-    ['Frukost', 'Frysta matlådor'].includes(item.category)
-      ? item
-      : { ...item, price: Number(item.basePrice ?? item.price) + selectedPrice - 139 }
+    item.category === 'Lunch'
+      ? { ...item, price: selectedPrice }
+      : item
   ));
   setOrderType(name);
  }
 
  function addToCart(name, basePrice, category) {
-  const price = ['Frukost', 'Frysta matlådor'].includes(category)
-    ? Number(basePrice)
-    : Number(basePrice) + lunchPrice - 139;
+  const price = category === 'Lunch' ? lunchPrice : Number(basePrice);
   setCart((old) => {
     const found = old.find(
       (item) =>
@@ -548,7 +561,7 @@ async function loadPublishedMenu() {
     setShowCart(false);
   }
 
-  async function bookTable() {
+  async function bookTable(kind = 'table') {
     if (!bookingName.trim() || !bookingPhone.trim()) {
       Alert.alert('Boka bord', 'Fyll i namn och telefonnummer.');
       return;
@@ -572,7 +585,7 @@ async function loadPublishedMenu() {
         booking_time: bookingTime.trim(),
         guests:
           Number(bookingGuests) || 2,
-        message: `Kund: ${bookingName.trim()}\nTelefon: ${bookingPhone.trim()}${bookingMessage.trim() ? `\nMeddelande: ${bookingMessage.trim()}` : ''}`,
+        message: `${kind === 'event' ? 'Catering och festlokal\n' : ''}Kund: ${bookingName.trim()}\nTelefon: ${bookingPhone.trim()}${bookingMessage.trim() ? `\nMeddelande: ${bookingMessage.trim()}` : ''}`,
         status: 'Ny',
       });
 
@@ -728,7 +741,7 @@ Alert.alert(
 
 if (order.push_token) {
   try {
-    await fetch('https://exp.host/--/api/v2/push/send', {
+    const pushResponse = await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -741,8 +754,13 @@ if (order.push_token) {
         body: 'Din mat är färdig!',
       }),
     });
+    const pushResult = await pushResponse.json();
+    if (!pushResponse.ok || pushResult.data?.status === 'error') {
+      throw new Error(pushResult.data?.message || 'Push-tjänsten avvisade notisen.');
+    }
   } catch (pushError) {
     console.log('Push kunde inte skickas:', pushError);
+    Alert.alert('Notis', 'Beställningen markerades klar, men kundens notis kunde inte skickas.');
   }
 }
 
@@ -774,6 +792,7 @@ loadOrders();
       editDish1.trim(),
       editDish2.trim(),
       editDish3.trim(),
+      ...(weeklyLunch[editDay] || []).slice(3),
     ].filter(Boolean);
 
     const error = await publishMenuSection('Lunch', editDay, newDishes);
@@ -854,6 +873,9 @@ function updateFullMenu(category, newItems) {
       ...old,
       [editDay]: newItems,
     }));
+    setEditDish1(newItems[0] || '');
+    setEditDish2(newItems[1] || '');
+    setEditDish3(newItems[2] || '');
   } else {
     setFullMenu((old) => ({
       ...old,
@@ -1371,7 +1393,7 @@ onAdd={() => {
 
 <AppButton
   title="Skicka bokningsförfrågan"
-  onPress={bookTable}
+  onPress={() => bookTable('event')}
 />
 </>
 )}
@@ -1474,7 +1496,7 @@ onAdd={() => {
 
             <AppButton
               title="Skicka bokning"
-              onPress={bookTable}
+              onPress={() => bookTable('table')}
             />
           </>
         )}
@@ -1743,7 +1765,7 @@ onAdd={() => {
 {adminMenuMode === 'edit' && (
   <>
     {CATEGORIES
-      .filter((category) => category !== 'Lunch' && category !== 'Boka bord')
+      .filter((category) => category !== 'Lunch' && category !== 'Boka bord' && category !== 'Catering & Festlokal')
       .map((category) => (
         <AppButton
           key={category}
@@ -1754,11 +1776,11 @@ onAdd={() => {
   </>
 )}
 
-{section !== 'Lunch' && section !== 'Boka bord' && (
+{fullMenu[section] && section !== 'Lunch' && (
   <Text style={styles.adminHeading}>
     Redigerar: {section}
   </Text>
-)} {section !== 'Lunch' && section !== 'Boka bord' &&
+)} {fullMenu[section] && section !== 'Lunch' &&
   (fullMenu[section] || []).map((food, index) => (
     <View key={`${section}-${index}`}>
       <TextInput
@@ -1783,7 +1805,7 @@ onAdd={() => {
       />
     </View>
   ))
-}{section !== 'Lunch' && section !== 'Boka bord' && (
+}{fullMenu[section] && section !== 'Lunch' && (
   <AppButton
     title="Spara ändringar"
     onPress={() => saveFullMenu(section)}
@@ -2372,3 +2394,4 @@ const styles = StyleSheet.create({
 
 
               
+

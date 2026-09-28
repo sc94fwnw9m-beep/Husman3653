@@ -1,0 +1,10 @@
+name: Publish iOS update
+
+jobs:
+  update_ios:
+    type: update
+    environment: production
+    params:
+      platform: ios
+      channel: production
+      message: 'Initialize order audio only in admin mode'

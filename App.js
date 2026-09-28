@@ -18,7 +18,7 @@ import { createClient } from '@supabase/supabase-js';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Notifications from 'expo-notifications';
 import { useAudioPlayer } from 'expo-audio';
-const supabaseUrl = 'https://qryynhzavlevuejpdto.s.supabase.co';
+const supabaseUrl = 'https://qryynhzavlevuejpdtos.supabase.co';
 const supabaseKey = 'sb_publishable_-DLe2m1LORuyuro1OkXu0g_M739wwVV';
 
 const supabase = createClient(supabaseUrl, supabaseKey);

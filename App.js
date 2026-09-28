@@ -421,6 +421,7 @@ async function loadFullMenu() {
         basePrice: Number(basePrice),
         category,
         qty: 1,
+        note: '',
       },
     ];
   });
@@ -931,6 +932,15 @@ function updateFullMenu(category, newItems) {
                     </Text>
                   </TouchableOpacity>
                 </View>
+                <TextInput
+                  style={styles.field}
+                  value={item.note || ''}
+                  onChangeText={(note) => setCart((old) => old.map((entry) =>
+                    entry.id === item.id ? { ...entry, note } : entry
+                  ))}
+                  placeholder="Meddelande om denna maträtt"
+                  multiline
+                />
               </View>
             ))
           )}
@@ -1589,6 +1599,7 @@ onAdd={() => {
                         >
                           • {item.qty} ×{' '}
                           {item.name}
+                          {!!item.note?.trim() && ` — ${item.note.trim()}`}
                         </Text>
                       )
                     )}

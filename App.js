@@ -255,7 +255,7 @@ const [fullMenu, setFullMenu] = useState(MENU);
 
   const [adminEmail, setAdminEmail] =
     useState('');
-
+const [adminPassword, setAdminPassword] = useState('');
 
   const [ownerCode, setOwnerCode] = useState('');
   const [showAdminLogin, setShowAdminLogin] = useState(false);
@@ -628,9 +628,9 @@ async function loadPublishedMenu() {
     return;
   }
 
-  setAdmin(true);
-}
 
+setAdmin(true);
+     }
 async function logout() {
   await supabase.auth.signOut();
 
@@ -668,7 +668,7 @@ async function logout() {
       return;
     }
 
-    const latest = data || [];
+   const latest = data || [];
     const ids = new Set(latest.map((order) => String(order.id)));
     if (knownOrderIds.current !== null && latest.some(
       (order) => !knownOrderIds.current.has(String(order.id))

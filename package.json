@@ -11,7 +11,7 @@
     "build:ios": "eas build --platform ios --profile production"
   },
   "dependencies": {
-    "@react-native-community/datetimepicker": "^8.4.4",
+    "@react-native-community/datetimepicker": "8.4.4",
     "@supabase/supabase-js": "2.57.4",
     "expo": "~54.0.0",
     "expo-audio": "~1.1.1",

@@ -522,6 +522,8 @@ async function loadPublishedMenu() {
     const { error } = await supabase
       .from('orders')
       .insert({
+        customer_name: customerName.trim(),
+        phone: customerPhone.trim(),
         items: cart,
         message: `Kund: ${customerName.trim()}\nTelefon: ${customerPhone.trim()}\nTyp: ${orderType}${message.trim() ? `\nMeddelande: ${message.trim()}` : ''}`,
         total: total,
@@ -581,6 +583,8 @@ async function loadPublishedMenu() {
     const { error } = await supabase
       .from('bookings')
       .insert({
+        customer_name: bookingName.trim(),
+        phone: bookingPhone.trim(),
         booking_date: bookingDate.trim(),
         booking_time: bookingTime.trim(),
         guests:

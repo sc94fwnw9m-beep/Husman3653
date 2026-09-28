@@ -1,0 +1,10 @@
+name: Submit iOS build 74 to TestFlight
+on:
+  push:
+    branches: ['submit-build-74']
+jobs:
+  submit_ios:
+    type: submit
+    params:
+      build_id: a83b2b2f-067c-4d5e-8145-7471b31d4018
+      profile: production

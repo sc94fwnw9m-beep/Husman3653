@@ -152,8 +152,21 @@ const formatDate = (date) => {
 };
 const formatTime = (date) => date.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
 
+function AdminOrderSound({ soundRef }) {
+  const player = useAudioPlayer(require('./assets/new-order.wav'));
+
+  useEffect(() => {
+    soundRef.current = player;
+    return () => {
+      soundRef.current = null;
+    };
+  }, [player, soundRef]);
+
+  return null;
+}
+
 export default function App() {
-  const orderSound = useAudioPlayer(require('./assets/new-order.wav'));
+  const orderSound = useRef(null);
   const knownOrderIds = useRef(null);
   const orderRefreshInProgress = useRef(false);
   const [section, setSection] = useState('Lunch');
@@ -643,7 +656,7 @@ async function logout() {
     if (knownOrderIds.current !== null && latest.some(
       (order) => !knownOrderIds.current.has(String(order.id))
     )) {
-      orderSound.seekTo(0).then(() => orderSound.play()).catch((soundError) => {
+      orderSound.current?.seekTo(0).then(() => orderSound.current?.play()).catch((soundError) => {
         console.log('Orderljudet kunde inte spelas:', soundError);
       });
     }
@@ -1083,6 +1096,7 @@ function updateFullMenu(category, newItems) {
         }
       >
         <Header onAdminOpen={() => setShowAdminLogin(true)} />
+        {admin && <AdminOrderSound soundRef={orderSound} />}
 
         <View style={styles.hero}>
           <Image source={{ uri: FOOD_IMAGES.Lunch }} style={styles.heroImage} />

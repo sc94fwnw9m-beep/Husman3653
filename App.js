@@ -17,7 +17,6 @@ import { StatusBar } from 'expo-status-bar';
 import { createClient } from '@supabase/supabase-js';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Notifications from 'expo-notifications';
-import { useAudioPlayer } from 'expo-audio';
 const supabaseUrl = 'https://qryynhzavlevuejpdtos.supabase.co';
 const supabaseKey = 'sb_publishable_-DLe2m1LORuyuro1OkXu0g_M739wwVV';
 
@@ -153,6 +152,8 @@ const formatDate = (date) => {
 const formatTime = (date) => date.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
 
 function AdminOrderSound({ soundRef }) {
+  // Load the native audio module only when the admin screen is rendered.
+  const { useAudioPlayer } = require('expo-audio');
   const player = useAudioPlayer(require('./assets/new-order.wav'));
 
   useEffect(() => {
@@ -269,13 +270,13 @@ const [fullMenu, setFullMenu] = useState(MENU);
     useState('Måndag');
 
   const [editDish1, setEditDish1] =
-    useState('');
+    useState(DEFAULT_LUNCH.Måndag[0]);
 
   const [editDish2, setEditDish2] =
-    useState('');
+    useState(DEFAULT_LUNCH.Måndag[1]);
 
   const [editDish3, setEditDish3] =
-    useState('');
+    useState(DEFAULT_LUNCH.Måndag[2]);
 const [newDishName, setNewDishName] = useState('');
 const [newDishPrice, setNewDishPrice] = useState('139');
 const [adminMenuMode, setAdminMenuMode] = useState('edit');
@@ -403,7 +404,8 @@ async function loadPublishedMenu() {
   return error;
  }
 
- async function saveFullMenu(section) {
+  async function saveFullMenu(section) {
+  if (!Object.prototype.hasOwnProperty.call(MENU, section)) return;
   const items = fullMenu[section] || [];
   const error = await publishMenuSection(section, '', items);
 
@@ -611,6 +613,10 @@ async function loadPublishedMenu() {
     return;
   }
 
+  const dishes = weeklyLunch[editDay] || [];
+  setEditDish1(dishes[0] || '');
+  setEditDish2(dishes[1] || '');
+  setEditDish3(dishes[2] || '');
   setAdmin(true);
 }
 
@@ -720,15 +726,10 @@ async function logout() {
       return;
     }
 
-   
-Alert.alert(
-  'Klart',
-  'Beställningen är markerad som Maten färdig.'
-);
-
+let pushSent = false;
 if (order.push_token) {
   try {
-    await fetch('https://exp.host/--/api/v2/push/send', {
+    const response = await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -741,10 +742,21 @@ if (order.push_token) {
         body: 'Din mat är färdig!',
       }),
     });
+    const result = await response.json();
+    const ticket = Array.isArray(result.data) ? result.data[0] : result.data;
+    pushSent = response.ok && ticket?.status === 'ok';
+    if (!pushSent) console.log('Push kunde inte skickas:', result);
   } catch (pushError) {
     console.log('Push kunde inte skickas:', pushError);
   }
 }
+
+Alert.alert(
+  'Maten färdig',
+  pushSent
+    ? 'Beställningen är klar och pushnotisen har tagits emot av Expo.'
+    : 'Beställningen är klar, men ingen pushnotis kunde bekräftas.'
+);
 
 loadOrders();
 }
@@ -821,6 +833,9 @@ function updateFullMenu(category, newItems) {
 
   if (isLunch) {
     setWeeklyLunch((old) => ({ ...old, [editDay]: newItems }));
+    setEditDish1(newItems[0] || '');
+    setEditDish2(newItems[1] || '');
+    setEditDish3(newItems[2] || '');
   } else {
     setFullMenu((old) => ({ ...old, [category]: newItems }));
   }
@@ -854,6 +869,9 @@ function updateFullMenu(category, newItems) {
       ...old,
       [editDay]: newItems,
     }));
+    setEditDish1(newItems[0] || '');
+    setEditDish2(newItems[1] || '');
+    setEditDish3(newItems[2] || '');
   } else {
     setFullMenu((old) => ({
       ...old,
@@ -1743,7 +1761,7 @@ onAdd={() => {
 {adminMenuMode === 'edit' && (
   <>
     {CATEGORIES
-      .filter((category) => category !== 'Lunch' && category !== 'Boka bord')
+      .filter((category) => Object.prototype.hasOwnProperty.call(MENU, category))
       .map((category) => (
         <AppButton
           key={category}
@@ -1754,11 +1772,11 @@ onAdd={() => {
   </>
 )}
 
-{section !== 'Lunch' && section !== 'Boka bord' && (
+{Object.prototype.hasOwnProperty.call(MENU, section) && (
   <Text style={styles.adminHeading}>
     Redigerar: {section}
   </Text>
-)} {section !== 'Lunch' && section !== 'Boka bord' &&
+)} {Object.prototype.hasOwnProperty.call(MENU, section) &&
   (fullMenu[section] || []).map((food, index) => (
     <View key={`${section}-${index}`}>
       <TextInput
@@ -1781,9 +1799,21 @@ onAdd={() => {
         }}
         placeholder="Pris"
       />
+      <AppButton
+        title="Radera maträtt"
+        outline
+        onPress={() => Alert.alert(
+          'Radera maträtt?',
+          food[0],
+          [
+            { text: 'Avbryt', style: 'cancel' },
+            { text: 'Radera', style: 'destructive', onPress: () => deleteDish(section, index) },
+          ]
+        )}
+      />
     </View>
   ))
-}{section !== 'Lunch' && section !== 'Boka bord' && (
+}{Object.prototype.hasOwnProperty.call(MENU, section) && (
   <AppButton
     title="Spara ändringar"
     onPress={() => saveFullMenu(section)}

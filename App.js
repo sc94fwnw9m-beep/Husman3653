@@ -23,7 +23,11 @@ const supabaseKey =
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 const OWNER_CODE = '3653';
-
+const ORDER_TYPES = [
+  ['Äta här', 139],
+  ['Ta med', 129],
+  ['Endast matlåda', 119],
+];
 const DEFAULT_LUNCH = {
   Måndag: [
     'Grillad fläsknoisette med stekt potatis, champinjonsås',
@@ -112,11 +116,7 @@ const MENU = {
   ],
 };
 
-const ORDER_TYPES = [
-  ['Äta här', 139],
-  ['Ta med', 129],
-  ['Endast matlåda', 119],
-];
+
 
 const CATEGORIES = [
   'Lunch',
@@ -242,7 +242,7 @@ export default function App() {
 
   const [newDishName, setNewDishName] = useState('');
   const [newDishPrice, setNewDishPrice] = useState('');
-
+const [newDishCategory, setNewDishCategory] = useState('Pasta');
   const lunchPrice =
     ORDER_TYPES.find((item) => item[0] === orderType)?.[1] || 139;
 
@@ -270,7 +270,7 @@ export default function App() {
           sum + getCartPrice(item) * item.qty,
         0
       ),
-    [cart, lunchPrice, fullMenu]
+[cart, lunchPrice, fullMenu, orderType]
   );
 
   const cartHasRegularFood = cart.some(
@@ -833,7 +833,7 @@ export default function App() {
       return;
     }
 
-    const category = section;
+    const category = newDishCategory;
 
     if (
       !fullMenu[category] ||

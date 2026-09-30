@@ -19,7 +19,7 @@ import * as Notifications from 'expo-notifications';
 
 const supabaseUrl = 'https://qryynhzavlevuejpdtos.supabase.co';
 const supabaseKey =
-  'sb_publishable_zcu1n20SXR7xlizKMHWHgw_I1jNK7JS';
+ 'sb_publishable_-DLe2m1LORuyuro1OkXu0g_M739wwVV';
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 const OWNER_CODE = '3653';

@@ -17,7 +17,7 @@ import { createClient } from '@supabase/supabase-js';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Notifications from 'expo-notifications';
 
-const supabaseUrl = 'https://ujmfvlktaxhefrqzkmdl.supabase.co';
+const supabaseUrl = 'https://qryynhzavlevuejpdtos.supabase.co';
 const supabaseKey =
   'sb_publishable_zcu1n20SXR7xlizKMHWHgw_I1jNK7JS';
 

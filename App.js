@@ -17,7 +17,7 @@ import { StatusBar } from 'expo-status-bar';
 import { createClient } from '@supabase/supabase-js';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Notifications from 'expo-notifications';
-import { useAudioPlayer } from 'expo-audio';
+
 const supabaseUrl = 'https://qryynhzavlevuejpdtos.supabase.co';
 const supabaseKey = 'sb_publishable_-DLe2m1LORuyuro1OkXu0g_M739wwVV';
 
@@ -152,21 +152,11 @@ const formatDate = (date) => {
 };
 const formatTime = (date) => date.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
 
-function AdminOrderSound({ soundRef }) {
-  const player = useAudioPlayer(require('./assets/new-order.wav'));
 
-  useEffect(() => {
-    soundRef.current = player;
-    return () => {
-      soundRef.current = null;
-    };
-  }, [player, soundRef]);
 
-  return null;
-}
+
 
 export default function App() {
-  const orderSound = useRef(null);
   const knownOrderIds = useRef(null);
   const orderRefreshInProgress = useRef(false);
   const [section, setSection] = useState('Lunch');
@@ -673,10 +663,8 @@ async function logout() {
     if (knownOrderIds.current !== null && latest.some(
       (order) => !knownOrderIds.current.has(String(order.id))
     )) {
-      orderSound.current?.seekTo(0).then(() => orderSound.current?.play()).catch((soundError) => {
-        console.log('Orderljudet kunde inte spelas:', soundError);
-      });
-    }
+
+      }
     knownOrderIds.current = ids;
     setOrders(latest);
   }
@@ -1121,9 +1109,7 @@ function updateFullMenu(category, newItems) {
           styles.content
         }
       >
-        <Header onAdminOpen={() => setShowAdminLogin(true)} />
-        {admin && <AdminOrderSound soundRef={orderSound} />}
-
+      
         <View style={styles.hero}>
           <Image source={{ uri: FOOD_IMAGES.Lunch }} style={styles.heroImage} />
           <View style={styles.heroOverlay}>

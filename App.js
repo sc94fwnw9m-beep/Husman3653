@@ -161,33 +161,13 @@ export default function App() {
   const orderRefreshInProgress = useRef(false);
   const [section, setSection] = useState('Lunch');
    const [expoPushToken, setExpoPushToken] = useState('');
-   useEffect(() => {
-  async function registerForPushNotifications() {
-    try {
-      const { status: existingStatus } =
-        await Notifications.getPermissionsAsync();
+   
 
-      let finalStatus = existingStatus;
 
-      if (existingStatus !== 'granted') {
-        const { status } =
-          await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
 
-      if (finalStatus !== 'granted') {
-        return;
-      }
+  
 
-      const token = await Notifications.getExpoPushTokenAsync();
-      setExpoPushToken(token.data);
-    } catch (error) {
-      console.log('Push notification error:', error);
-    }
-  }
 
-  registerForPushNotifications();
-}, []);
   const [day, setDay] = useState(() => {
     const days = ['Söndag', 'Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag'];
     const today = days[new Date().getDay()];
@@ -733,7 +713,7 @@ Alert.alert(
 
 if (order.push_token) {
   try {
-    const pushResponse = await fetch('https://exp.host/--/api/v2/push/send', {
+    await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -746,13 +726,8 @@ if (order.push_token) {
         body: 'Din mat är färdig!',
       }),
     });
-    const pushResult = await pushResponse.json();
-    if (!pushResponse.ok || pushResult.data?.status === 'error') {
-      throw new Error(pushResult.data?.message || 'Push-tjänsten avvisade notisen.');
-    }
   } catch (pushError) {
     console.log('Push kunde inte skickas:', pushError);
-    Alert.alert('Notis', 'Beställningen markerades klar, men kundens notis kunde inte skickas.');
   }
 }
 
@@ -1031,7 +1006,7 @@ function updateFullMenu(category, newItems) {
           </TouchableOpacity>
           {showOrderDatePicker && (
             <DateTimePicker
-              value={orderDate ? new Date(`${orderDate}T12:00:00`) : new Date()}
+              value={orderDate ? new Date(`${orderDate}T12:00:00`) : new Date()}s
               mode="date"
               minimumDate={new Date()}
               onChange={(_, selected) => {

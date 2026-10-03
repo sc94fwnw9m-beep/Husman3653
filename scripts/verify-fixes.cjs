@@ -22,9 +22,14 @@ async function checks() {
     adminPassword: 'test', weeklyLunch: {Måndag: ['A','B','C']}, editDay:'Måndag',
     setEditDish1(){},setEditDish2(){},setEditDish3(){},setAdminPassword(){},
     setAdmin: value => entered=value,
-    supabase: {auth:{signInWithPassword:async()=>({data:{session:null},error:{message:'denied'}})}}};
+    supabase: {auth:{signInWithPassword:async()=>({data:{session:null},error:{message:'denied'}}),
+      signOut:async()=>{}},rpc:async()=>({data:false,error:null})}};
   await fn('login', loginCtx)(); assert.equal(entered,false);
   loginCtx.supabase.auth.signInWithPassword=async()=>({data:{session:{}},error:null});
+  await fn('login',loginCtx)(); assert.equal(entered,false);
+  loginCtx.supabase.rpc=async()=>({data:null,error:{message:'RPC missing'}});
+  await fn('login',loginCtx)(); assert.equal(entered,false);
+  loginCtx.supabase.rpc=async()=>({data:true,error:null});
   await fn('login',loginCtx)(); assert.equal(entered,true);
   let sends=0;
   const readyCtx = {Alert,readyOrderIds:{current:new Set()},loadOrders:async()=>{},
@@ -66,29 +71,49 @@ async function checks() {
   assert(source.includes('onChangeText={setAdminPassword}'));
   const a=JSON.parse(fs.readFileSync('app.json'));const p=JSON.parse(fs.readFileSync('package.json'));
   assert.equal(a.expo.version,p.version);assert.equal(a.expo.version,'1.0.9');
-  console.log('PASS: JSX syntax, auth failure/success, denied order update, push rejection, refresh unlock, duplicate tap, lazy audio, password field, runtime versions');
+  console.log('PASS: JSX syntax, login fails closed without owner authorization, owner login, denied order update, push rejection, refresh unlock, duplicate tap, lazy audio, password field, runtime versions');
 
   const db = new PGlite();
   await db.exec(`create role anon;create role authenticated;
     create schema auth;
+    create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz,encrypted_password text);
+    insert into auth.users values('11111111-1111-1111-1111-111111111111','owner@example.test',now(),'fixture'),
+      ('22222222-2222-2222-2222-222222222222','customer@example.test',now(),'fixture');
     create function auth.uid() returns uuid language sql as $$
       select nullif(current_setting('test.uid',true),'')::uuid $$;
     create table public.menu_items(id bigint generated always as identity primary key,
       category text,day text,name text,price numeric,active boolean);
+    create table public.orders(id bigint generated always as identity primary key,
+      customer_name text,phone text,items jsonb,order_type text,pickup_date date,
+      pickup_time text,message text,total numeric,status text default 'Ny',push_token text,
+      created_at timestamptz default now());
+    create table public.bookings(id bigint generated always as identity primary key,
+      customer_name text,phone text,booking_date date,booking_time text,guests integer,
+      message text,status text default 'Ny',created_at timestamptz default now());
     insert into menu_items(category,day,name,price,active) values
       ('Pasta','','A',139,true),('Pasta','','B',139,true);
     alter table menu_items enable row level security;
-    create policy read_menu on menu_items for select to authenticated using(true);
-    create policy owner_update on menu_items for update to authenticated
-      using(auth.uid()='11111111-1111-1111-1111-111111111111')
-      with check(auth.uid()='11111111-1111-1111-1111-111111111111');
-    create policy owner_insert on menu_items for insert to authenticated
-      with check(auth.uid()='11111111-1111-1111-1111-111111111111');
-    grant usage on schema public,auth to authenticated;
-    grant select,insert,update on menu_items to authenticated;
-    grant usage on sequence menu_items_id_seq to authenticated;`);
+    create policy "Public read menu" on menu_items for select using(true);
+    create policy "Public insert menu" on menu_items for insert with check(true);
+    create policy "Public update menu" on menu_items for update using(true) with check(true);
+    alter table orders enable row level security;
+    alter table bookings enable row level security;
+    create policy "Public read orders" on orders for select using(true);
+    create policy "Public create orders" on orders for insert with check(true);
+    create policy "Public update orders" on orders for update using(true) with check(true);
+    create policy "Public delete orders" on orders for delete using(true);
+    create policy "Public read bookings" on bookings for select using(true);
+    create policy "Public create bookings" on bookings for insert with check(true);
+    grant usage on schema public,auth to anon,authenticated;
+    grant all on menu_items,orders,bookings to anon,authenticated;
+    grant usage on all sequences in schema public to anon,authenticated;`);
+  const ownerSql=fs.readFileSync('supabase/migrations/20261003_01_owner_authorization.sql','utf8');
+  await assert.rejects(()=>db.exec(ownerSql),/owner email must be supplied/);
+  await db.exec('rollback');
+  await db.exec(ownerSql.replace('begin;', "begin; set local husman.owner_email='owner@example.test';"));
   await db.exec(fs.readFileSync('supabase/migrations/20261003_atomic_menu_publication.sql','utf8'));
   await db.exec(`set role authenticated;set test.uid='11111111-1111-1111-1111-111111111111';`);
+  assert.equal((await db.query('select public.is_restaurant_admin() as owner')).rows[0].owner,true);
   async function snapshot(){return (await db.query('select jsonb_agg(to_jsonb(m) order by id) as rows from menu_items m')).rows[0].rows;}
   async function publish(items,expected){return db.query(`select public.publish_menu_section_v1('Pasta','',$1::jsonb,$2::jsonb) as result`,[JSON.stringify(items),JSON.stringify(expected)]);}
   const before=await snapshot();
@@ -104,11 +129,31 @@ async function checks() {
   await assert.rejects(()=>publish([{name:'changed',price:150},{name:'FAIL',price:150}],stable),/injected failure/);
   assert.deepEqual(await snapshot(),stable);
   await db.exec(`set test.uid='22222222-2222-2222-2222-222222222222';`);
-  await assert.rejects(()=>publish([{name:'unauthorized',price:150}],stable),/denied/);
+  await assert.rejects(()=>publish([{name:'unauthorized',price:150}],stable),/authorization required/);
   assert.deepEqual(await snapshot(),stable);
+  assert.equal((await db.query('select public.is_restaurant_admin() as owner')).rows[0].owner,false);
+  await assert.rejects(()=>db.exec("insert into menu_items(category,day,name,price,active) values('Pasta','','BAD',1,true)"),/row-level security/);
   await db.exec(`reset role;set role anon;`);
   await assert.rejects(()=>publish([],stable),/permission denied/);
+  await assert.rejects(()=>db.query('select * from orders'),/permission denied/);
+  await assert.rejects(()=>db.query('select * from bookings'),/permission denied/);
+  await assert.rejects(()=>db.exec("update menu_items set name='BAD'"),/permission denied/);
+  await assert.rejects(()=>db.exec('truncate orders'),/permission denied/);
+  await db.exec("insert into orders(customer_name,phone,items,pickup_date,pickup_time,total,status) values('Fixture','123','[{\"name\":\"C\",\"qty\":1,\"price\":145}]','2026-10-05','12:00',145,'Ny'); insert into bookings(customer_name,phone,booking_date,booking_time,guests,status) values('Fixture','123','2026-10-05','12:00',2,'Ny');");
+  await assert.rejects(()=>db.exec("insert into orders(customer_name,phone,items,pickup_date,pickup_time,total,status) values('Fixture','123','[]','2026-10-05','12:00',1,'Maten färdig')"),/row-level security/);
+  await db.exec("reset role; set role authenticated; set test.uid='22222222-2222-2222-2222-222222222222';");
+  assert.equal((await db.query('select * from orders')).rows.length,0);
+  assert.equal((await db.query('select * from bookings')).rows.length,0);
+  assert.equal((await db.query("update orders set status='Maten färdig' returning id")).rows.length,0);
+  assert.equal((await db.query('delete from orders returning id')).rows.length,0);
+  await db.exec("set test.uid='11111111-1111-1111-1111-111111111111';");
+  assert.equal((await db.query('select * from orders')).rows.length,1);
+  assert.equal((await db.query('select * from bookings')).rows.length,1);
+  assert.equal((await db.query('delete from orders returning id')).rows.length,0);
+  assert.equal((await db.query("update orders set status='Maten färdig' returning id")).rows.length,1);
+  assert.equal((await db.query('delete from orders returning id')).rows.length,1);
+  await assert.rejects(()=>db.query('select * from husman_private.restaurant_admins'),/permission denied/);
   await db.close();
-  console.log('PASS: PostgreSQL function installs; publish/inactivate; stale save rejected; mid-save failure rolls back; non-owner RLS and anonymous execution denied');
+  console.log('PASS: actual owner-policy migration replaces permissive fixture policies; customer orders/bookings remain writable; customer details, menu writes, order updates/deletes and TRUNCATE protected; owner can read/complete/delete finished orders; atomic publication, stale rejection and rollback verified');
 }
 checks().catch(e=>{console.error(e);process.exitCode=1});

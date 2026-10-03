@@ -456,13 +456,18 @@ async function loadPublishedMenu() {
   Alert.alert('Klart', `${section} är uppdaterad för alla kunder.`);
  }
 
+ function mealPrice(basePrice, category, type = orderType) {
+  const base = Number(basePrice);
+  if (['Frukost', 'Frysta matlådor'].includes(category)) return base;
+  const selectedPrice = ORDER_TYPES.find(([name]) => name === type)?.[1] ?? 139;
+  return category === 'Lunch' ? selectedPrice : Math.max(1, base + selectedPrice - 139);
+ }
+
  function selectOrderType(name) {
   const selectedPrice = ORDER_TYPES.find(([type]) => type === name)?.[1];
   if (selectedPrice == null) return;
   setCart((old) => old.map((item) =>
-    item.category === 'Lunch'
-      ? { ...item, price: selectedPrice }
-      : item
+    ({ ...item, price: mealPrice(item.basePrice ?? item.price, item.category, name) })
   ));
   setOrderType(name);
  }
@@ -472,7 +477,7 @@ async function loadPublishedMenu() {
     Alert.alert('Meny', 'Vänta tills den aktuella menyn har hämtats.');
     return;
   }
-  const price = category === 'Lunch' ? lunchPrice : Number(basePrice);
+  const price = mealPrice(basePrice, category);
   setCart((old) => {
     const found = old.find(
       (item) =>
@@ -1273,40 +1278,6 @@ day === item && styles.dayActive,
                   </Text>
                 </TouchableOpacity>
               ))}
-            </View>
-
-            <Text style={styles.label}>
-              Välj:
-            </Text>
-
-            <View style={styles.types}>
-              {ORDER_TYPES.map(
-                ([name, price]) => (
-                  <TouchableOpacity
-                    key={name}
-                    onPress={() =>
-                      selectOrderType(name)
-                    }
-                    style={[
-                      styles.type,
-                      orderType === name &&
-                        styles.typeActive,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.typeText,
-                        orderType === name &&
-                          styles.typeTextActive,
-                      ]}
-                    >
-                      {name}
-                      {'\n'}
-                      {price} kr
-                    </Text>
-                  </TouchableOpacity>
-                )
-              )}
             </View>
 
           {(weeklyLunch[day] || []).map(

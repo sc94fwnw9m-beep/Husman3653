@@ -1,6 +1,6 @@
 {
   "name": "husman-lunchrestaurang",
-  "version": "1.0.7",
+  "version": "1.0.9",
   "private": true,
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
@@ -8,7 +8,8 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "build:android": "eas build --platform android --profile production",
-    "build:ios": "eas build --platform ios --profile production"
+    "build:ios": "eas build --platform ios --profile production",
+    "verify:fixes": "node scripts/verify-fixes.cjs"
   },
   "dependencies": {
     "@react-native-community/datetimepicker": "8.4.4",
@@ -28,6 +29,8 @@
     "@babel/plugin-transform-class-properties": "^7.25.9",
     "@babel/plugin-transform-private-methods": "^7.25.9",
     "@babel/plugin-transform-private-property-in-object": "^7.25.9",
-    "babel-preset-expo": "~54.0.12"
+    "babel-preset-expo": "~54.0.12",
+    "@babel/parser": "7.29.9",
+    "@electric-sql/pglite": "0.5.8"
   }
 }

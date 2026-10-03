@@ -17,7 +17,6 @@ import { StatusBar } from 'expo-status-bar';
 import { createClient } from '@supabase/supabase-js';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Notifications from 'expo-notifications';
-import { useAudioPlayer } from 'expo-audio';
 const supabaseUrl = 'https://qryynhzavlevuejpdtos.supabase.co';
 const supabaseKey = 'sb_publishable_-DLe2m1LORuyuro1OkXu0g_M739wwVV';
 
@@ -153,6 +152,7 @@ const formatDate = (date) => {
 const formatTime = (date) => date.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
 
 function AdminOrderSound({ soundRef }) {
+  const { useAudioPlayer } = require('expo-audio');
   const player = useAudioPlayer(require('./assets/new-order.wav'));
 
   useEffect(() => {
@@ -169,6 +169,12 @@ export default function App() {
   const orderSound = useRef(null);
   const knownOrderIds = useRef(null);
   const orderRefreshInProgress = useRef(false);
+  const orderSubmitInProgress = useRef(false);
+  const menuPublishInProgress = useRef(false);
+  const menuSnapshot = useRef(null);
+  const menuRefreshInProgress = useRef(false);
+  const menuLoadAlertShown = useRef(false);
+  const readyOrderIds = useRef(new Set());
   const [section, setSection] = useState('Lunch');
    const [expoPushToken, setExpoPushToken] = useState('');
    useEffect(() => {
@@ -189,7 +195,9 @@ export default function App() {
         return;
       }
 
-      const token = await Notifications.getExpoPushTokenAsync();
+      const token = await Notifications.getExpoPushTokenAsync({
+        projectId: 'd2f4d05f-9222-4f0a-8408-22acea729cc9',
+      });
       setExpoPushToken(token.data);
     } catch (error) {
       console.log('Push notification error:', error);
@@ -208,6 +216,7 @@ export default function App() {
 
   const [weeklyLunch, setWeeklyLunch] =
     useState(DEFAULT_LUNCH);
+  const [menuAvailable, setMenuAvailable] = useState(false);
 const [fullMenu, setFullMenu] = useState(MENU);
   const [orderType, setOrderType] =
     useState('Äta här');
@@ -344,15 +353,21 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
     }
   }, [admin]);
 async function loadPublishedMenu() {
+  if (menuRefreshInProgress.current) return;
+  menuRefreshInProgress.current = true;
+  try {
   const { data, error } = await supabase
     .from('menu_items')
-    .select('category,day,name,price,active')
+    .select('id,category,day,name,price,active')
     .order('id', { ascending: true });
 
-  if (error) {
-    console.log('Menyn kunde inte hämtas:', error);
-    return;
-  }
+  if (error) throw error;
+  if (!data?.length) throw new Error('Ingen publicerad meny kunde bekräftas.');
+  if (data.some((row) => row.active !== false
+    && (row.category === 'Lunch' || Object.prototype.hasOwnProperty.call(MENU, row.category)) && (
+    typeof row.name !== 'string' || !row.name.trim()
+    || (row.category !== 'Lunch' && (!Number.isFinite(Number(row.price)) || Number(row.price) <= 0))
+  ))) throw new Error('Menyn innehåller en ogiltig maträtt eller ett ogiltigt pris.');
 
   const lunch = { ...DEFAULT_LUNCH };
   const full = { ...MENU };
@@ -372,50 +387,61 @@ async function loadPublishedMenu() {
         seenCategories.add(row.category);
       }
       if (row.active !== false && row.name) {
-        full[row.category].push([row.name, Number(row.price) || 139]);
+        full[row.category].push([row.name, Number(row.price)]);
       }
     }
   }
 
   setWeeklyLunch(lunch);
   setFullMenu(full);
+  menuSnapshot.current = data || [];
+  setMenuAvailable(true);
+  menuLoadAlertShown.current = false;
+  } catch (error) {
+    console.log('Menyn kunde inte hämtas:', error);
+    setMenuAvailable(false);
+    if (!menuLoadAlertShown.current) {
+      menuLoadAlertShown.current = true;
+      Alert.alert('Meny', 'Den aktuella menyn kunde inte hämtas. Vänta tills anslutningen fungerar innan du beställer.');
+    }
+  } finally {
+    menuRefreshInProgress.current = false;
+  }
  }
 
  async function publishMenuSection(category, day, items) {
-  // Keep existing rows until each replacement has been saved successfully.
-  // Inactive rows remain in the database and can be recovered if needed.
-  const { data: existing, error: readError } = await supabase
-    .from('menu_items')
-    .select('id')
-    .eq('category', category)
-    .eq('day', day)
-    .order('id', { ascending: true });
-  if (readError) return readError;
-
+  if (menuPublishInProgress.current) return new Error('En meny sparas redan.');
+  if (menuSnapshot.current === null) return new Error('Hämta menyn innan den sparas.');
+  if (category !== 'Lunch' && !Object.prototype.hasOwnProperty.call(MENU, category)) {
+    return new Error('Ogiltig menykategori.');
+  }
   const rows = items.map((item) => ({
-    category,
-    day,
     name: category === 'Lunch' ? item : item[0],
     price: category === 'Lunch' ? 139 : Number(item[1]),
-    active: true,
   }));
-
-  for (let index = 0; index < rows.length; index += 1) {
-    const row = existing?.[index];
-    const result = row
-      ? await supabase.from('menu_items').update(rows[index]).eq('id', row.id).select('id')
-      : await supabase.from('menu_items').insert(rows[index]).select('id');
-    if (result.error) return result.error;
-    if (!result.data?.length) return new Error('Saknar behörighet att spara menyn.');
+  if (rows.some((row) => typeof row.name !== 'string' || !row.name.trim()
+    || !Number.isFinite(row.price) || row.price <= 0)) {
+    return new Error('Alla maträtter måste ha namn och giltigt pris.');
   }
-
-  for (const row of (existing || []).slice(rows.length)) {
-    const { data, error } = await supabase.from('menu_items')
-      .update({ active: false }).eq('id', row.id).select('id');
-    if (error) return error;
-    if (!data?.length) return new Error('Saknar behörighet att uppdatera menyn.');
+  menuPublishInProgress.current = true;
+  try {
+    // One RPC transaction: do not fall back to partial client-side writes.
+    const expected = menuSnapshot.current.filter((row) => row.category === category && row.day === day);
+    const { data, error } = await supabase.rpc('publish_menu_section_v1', {
+      p_category: category, p_day: day, p_items: rows, p_expected: expected,
+    });
+    if (!error && Array.isArray(data)) {
+      menuSnapshot.current = [
+        ...menuSnapshot.current.filter((row) => row.category !== category || row.day !== day),
+        ...data,
+      ];
+    }
+    return error;
+  } catch (error) {
+    return error;
+  } finally {
+    menuPublishInProgress.current = false;
   }
-  return null;
  }
 
  async function saveFullMenu(section) {
@@ -442,6 +468,10 @@ async function loadPublishedMenu() {
  }
 
  function addToCart(name, basePrice, category) {
+  if (!menuAvailable) {
+    Alert.alert('Meny', 'Vänta tills den aktuella menyn har hämtats.');
+    return;
+  }
   const price = category === 'Lunch' ? lunchPrice : Number(basePrice);
   setCart((old) => {
     const found = old.find(
@@ -495,6 +525,11 @@ async function loadPublishedMenu() {
   }
 
   async function sendOrder() {
+    if (orderSubmitInProgress.current) return;
+    if (!menuAvailable) {
+      Alert.alert('Meny', 'Den aktuella menyn måste hämtas innan du beställer.');
+      return;
+    }
     if (cart.length === 0) {
       Alert.alert(
         'Beställning',
@@ -519,6 +554,8 @@ async function loadPublishedMenu() {
       return;
     }
 
+    orderSubmitInProgress.current = true;
+    try {
     const { error } = await supabase
       .from('orders')
       .insert({
@@ -561,6 +598,11 @@ async function loadPublishedMenu() {
     setOrderDate('');
     setOrderTime('');
     setShowCart(false);
+    } catch (error) {
+      Alert.alert('Beställning', 'Beställningen kunde inte bekräftas. Kontrollera med restaurangen innan du skickar igen.');
+    } finally {
+      orderSubmitInProgress.current = false;
+    }
   }
 
   async function bookTable(kind = 'table') {
@@ -618,22 +660,37 @@ async function loadPublishedMenu() {
   }
 
   async function login() {
-  if (ownerCode.trim() !== OWNER_CODE) {
-    Alert.alert('Admin', 'Fel ägarkod.');
-    return;
+    if (ownerCode.trim() !== OWNER_CODE) {
+      Alert.alert('Admin', 'Fel ägarkod.');
+      return;
+    }
+    if (!adminEmail.trim() || !adminPassword) {
+      Alert.alert('Admin', 'Fyll i e-post och lösenord.');
+      return;
+    }
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: adminEmail.trim(), password: adminPassword,
+      });
+      if (error || !data.session) {
+        Alert.alert('Admin', 'Inloggningen misslyckades. Kontrollera e-post och lösenord.');
+        return;
+      }
+      const dishes = weeklyLunch[editDay] || [];
+      setEditDish1(dishes[0] || '');
+      setEditDish2(dishes[1] || '');
+      setEditDish3(dishes[2] || '');
+      setAdminPassword('');
+      setAdmin(true);
+    } catch (error) {
+      Alert.alert('Admin', 'Kunde inte logga in just nu.');
+    }
   }
-
-  if (!adminEmail.trim()) {
-    Alert.alert('Admin', 'Fyll i e-post.');
-    return;
-  }
-
-
-setAdmin(true);
-     }
 async function logout() {
   await supabase.auth.signOut();
 
+  setAdminPassword('');
+  setOwnerCode('');
   setAdmin(false);
   setOrders([]);
   knownOrderIds.current = null;
@@ -645,40 +702,33 @@ async function logout() {
   async function loadOrders(silent = false) {
     if (orderRefreshInProgress.current) return;
     orderRefreshInProgress.current = true;
-    const { data, error } =
-      await supabase
-        .from('orders')
-        .select('*')
-        .order(
-          'created_at',
-          { ascending: false }
-        );
-    orderRefreshInProgress.current = false;
-
-    if (error) {
-      console.log(error);
-
-      if (!silent) {
-        Alert.alert(
-          'Beställningar',
-          'Kunde inte hämta beställningar.'
-        );
+    try {
+      const { data, error } = await supabase.from('orders').select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      const latest = data || [];
+      const ids = new Set(latest.map((order) => String(order.id)));
+      if (knownOrderIds.current !== null && latest.some(
+        (order) => !knownOrderIds.current.has(String(order.id))
+      )) {
+        const player = orderSound.current;
+        if (player) {
+          try {
+            await player.seekTo(0);
+            player.play();
+          } catch (soundError) {
+            console.log('Orderljudet kunde inte spelas:', soundError);
+          }
+        }
       }
-
-      return;
+      knownOrderIds.current = ids;
+      setOrders(latest);
+    } catch (error) {
+      console.log(error);
+      if (!silent) Alert.alert('Beställningar', 'Kunde inte hämta beställningar.');
+    } finally {
+      orderRefreshInProgress.current = false;
     }
-
-   const latest = data || [];
-    const ids = new Set(latest.map((order) => String(order.id)));
-    if (knownOrderIds.current !== null && latest.some(
-      (order) => !knownOrderIds.current.has(String(order.id))
-    )) {
-      orderSound.current?.seekTo(0).then(() => orderSound.current?.play()).catch((soundError) => {
-        console.log('Orderljudet kunde inte spelas:', soundError);
-      });
-    }
-    knownOrderIds.current = ids;
-    setOrders(latest);
   }
 
   function confirmDeleteOrder(order) {
@@ -720,57 +770,45 @@ async function logout() {
   }
 
   async function foodReady(order) {
-    const { error } =
-      await supabase
-        .from('orders')
-        .update({
-          status: 'Maten färdig',
-        })
-        .eq('id', order.id);
-
-    if (error) {
-      Alert.alert(
-        'Maten färdig',
-        'Statusen kunde inte uppdateras.'
-      );
-
-      return;
+    if (readyOrderIds.current.has(order.id)) return;
+    readyOrderIds.current.add(order.id);
+    try {
+      const { data, error } = await supabase.from('orders')
+        .update({ status: 'Maten färdig' })
+        .eq('id', order.id).neq('status', 'Maten färdig').select('id');
+      if (error || !data?.length) {
+        Alert.alert('Maten färdig', 'Statusen kunde inte bekräftas. Uppdatera beställningarna.');
+        return;
+      }
+      let pushAccepted = false;
+      if (order.push_token) {
+        try {
+          const response = await fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST',
+            headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: order.push_token, sound: 'default',
+              title: 'Husman Lunchrestaurang', body: 'Din mat är färdig!',
+            }),
+          });
+          const result = await response.json();
+          const ticket = Array.isArray(result.data) ? result.data[0] : result.data;
+          pushAccepted = response.ok && ticket?.status === 'ok';
+          if (!pushAccepted) console.log('Push avvisades:', result);
+        } catch (pushError) {
+          console.log('Push kunde inte skickas:', pushError);
+        }
+      }
+      Alert.alert('Maten färdig', pushAccepted
+        ? 'Beställningen är klar och Expo har tagit emot pushnotisen.'
+        : 'Beställningen är klar, men ingen pushnotis kunde bekräftas.');
+      await loadOrders();
+    } catch (error) {
+      Alert.alert('Maten färdig', 'Kunde inte bekräfta ändringen just nu.');
+    } finally {
+      readyOrderIds.current.delete(order.id);
     }
-
-   
-Alert.alert(
-  'Klart',
-  'Beställningen är markerad som Maten färdig.'
-);
-
-if (order.push_token) {
-  try {
-    const pushResponse = await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        to: order.push_token,
-        sound: 'default',
-        title: 'Husman Lunchrestaurang',
-        body: 'Din mat är färdig!',
-      }),
-    });
-    const pushResult = await pushResponse.json();
-    if (!pushResponse.ok || pushResult.data?.status === 'error') {
-      throw new Error(pushResult.data?.message || 'Push-tjänsten avvisade notisen.');
-    }
-  } catch (pushError) {
-    console.log('Push kunde inte skickas:', pushError);
-    Alert.alert('Notis', 'Beställningen markerades klar, men kundens notis kunde inte skickas.');
   }
-}
-
-loadOrders();
-}
-
 
   function openDayForEditing(selectedDay) {
     const dishes =
@@ -844,6 +882,9 @@ function updateFullMenu(category, newItems) {
 
   if (isLunch) {
     setWeeklyLunch((old) => ({ ...old, [editDay]: newItems }));
+    setEditDish1(newItems[0] || '');
+    setEditDish2(newItems[1] || '');
+    setEditDish3(newItems[2] || '');
   } else {
     setFullMenu((old) => ({ ...old, [category]: newItems }));
   }
@@ -1543,6 +1584,15 @@ onAdd={() => {
                   setAdminEmail
                 }
                 placeholder="E-post"
+              />
+              <TextInput
+                style={styles.field}
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry
+                value={adminPassword}
+                onChangeText={setAdminPassword}
+                placeholder="Lösenord"
               />
 
         
@@ -2398,4 +2448,3 @@ const styles = StyleSheet.create({
 
 
               
-

@@ -676,6 +676,13 @@ async function loadPublishedMenu() {
         Alert.alert('Admin', 'Inloggningen misslyckades. Kontrollera e-post och lösenord.');
         return;
       }
+      const { data: isOwner, error: ownerError } = await supabase.rpc('is_restaurant_admin');
+      if (ownerError || isOwner !== true) {
+        await supabase.auth.signOut();
+        setAdminPassword('');
+        Alert.alert('Admin', 'Kontot saknar restaurangens ägarbehörighet.');
+        return;
+      }
       const dishes = weeklyLunch[editDay] || [];
       setEditDish1(dishes[0] || '');
       setEditDish2(dishes[1] || '');

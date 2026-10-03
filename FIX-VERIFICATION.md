@@ -1,58 +1,67 @@
 # Order and menu fixes — release status
 
 Based on main commit 2773d3dc2a0ae14062b1ff9eb62e373a71b0826f.
-PR #3 is diverged and cannot be treated as the installed build 54 source.
-This patch retains main's Supabase project, images, logo, categories, prices,
+This branch retains main's Supabase project, images, logo, categories, prices,
 booking/catering behavior, and existing push registration/order audio.
 
 ## Implemented
 
-- Authenticate admin using Supabase email/password; expose password input only
-  inside the existing admin login panel. Owner-only database RLS remains required.
-- Load native audio only when the admin view opens. Version/runtime becomes
-  1.0.9 (distinct from PR #2's 1.0.8). A new native binary is required.
-- Require an affected order row before showing completion or sending push.
-  Verify Expo's ticket status; acceptance is not proof of device delivery.
-- Guard duplicate submit/completion taps; release refresh locks after exceptions.
-- Initialize weekly editing fields on login and synchronize them after adding a
-  lunch dish, preventing stale fields from overwriting published dishes.
-- Refuse ordering when menu retrieval fails or returns no published rows.
-- Replace partial per-row menu publication with an atomic database RPC. Reject
-  stale snapshots instead of overwriting another administrator's publication.
-  No fallback to partial writes if the RPC has not been installed.
+- Authenticate admin using Supabase email/password, then require a positive
+  server-side `is_restaurant_admin` result. Missing authorization/RPC fails closed
+  and signs out. The existing owner-code UI is retained as an additional check.
+- Add an owner allowlist in a private schema and explicit table RLS policies.
+  Only the verified existing owner can read customer orders/bookings, change
+  menus, complete orders, and delete finished orders. Customers retain public
+  menu reading and creation of new orders/bookings. Revoke unnecessary table
+  privileges, including TRUNCATE. No customer rows are modified by this migration.
+- Lazy-load native audio in the admin view. Version/runtime is 1.0.9, distinct
+  from PR #2's 1.0.8. A compatible new native binary is required.
+- Confirm affected order rows and Expo push-ticket acceptance before reporting
+  success. Ticket acceptance is not proof of delivery to a device.
+- Guard duplicate taps, release refresh locks after exceptions, initialize menu
+  editing fields, and block orders when no published menu can be confirmed.
+- Publish menu sections through one atomic RPC with stale-snapshot rejection;
+  verify owner authorization in the RPC as well as table RLS. No partial fallback.
 
 ## Verification
 
 Run `npm install --ignore-scripts` then `npm run verify:fixes`.
-Tests parse the complete JSX and exercise authentication, update authorization,
-push rejection, refresh recovery, duplicate submission, and runtime consistency.
-An embedded PostgreSQL instance verifies the actual SQL function: publication,
-inactive rows, stale edits, rollback after a mid-save failure, non-owner RLS,
-and anonymous execution denial. This is a fixture, not the live Supabase schema.
+Tests parse the complete JSX and exercise authorization failures/success,
+order-update rejection, push failure, refresh recovery, duplicate submission,
+menu validation and runtime consistency.
+An embedded PostgreSQL instance runs both actual migrations against permissive
+fixture policies, then verifies owner access, customer order/booking creation,
+non-owner denial, TRUNCATE denial, finished-order deletion, private allowlist
+protection, atomic publication, stale edits and rollback after a mid-save failure.
+These checks do not substitute for authenticated API and native-device tests.
 
-## Required before merging or publishing
+## Coordinated rollout required
 
-1. Inspect the live `menu_items`, `orders`, and `bookings` schema and RLS. Confirm
-   the restaurant's Supabase Auth account exists. Anonymous clients must not read
-   customer details or update/delete orders; menu writes must be owner-only.
-   The repository's old weekly_menu SQL allows every authenticated user to write;
-   do not reuse that policy as owner authorization.
-2. Validate and install `supabase/migrations/20261003_atomic_menu_publication.sql`
-   in the target project. It keeps current table grants/policies and uses security
-   invoker. It does not grant menu table writes or bypass RLS. Verify column types,
-   triggers, read access to inactive rows, and empty-string day conventions first.
-3. Reconcile complete published menus in this project. Missing categories still
-   retain existing hardcoded defaults. Prices 139/129/119 remain hardcoded; remote
-   order-type pricing needs a verified schema and is not implemented by this patch.
-   Existing cart entries retain captured prices; decide how to handle price changes
-   while a customer is already ordering before changing that established behavior.
-4. Identify the installed TestFlight build's commit/runtime/channel/update ID.
-   Build 1.0.9 and test startup, dates, cart, auth, menu publication, orders, admin
-   audio, and customer push on real devices. Do not publish the production OTA
-   workflow as a substitute for native build verification.
+1. Verify the existing owner Auth account and real password login. Inside the
+   first migration transaction, supply `husman.owner_email` using SET LOCAL.
+   Never put the owner's email/password in the repository. The migration rejects
+   missing/ambiguous/unconfirmed accounts, a different existing admin, and unknown
+   table policies rather than silently changing other permissions.
+2. Validate current schema, identity sequences, table policies and triggers. Test
+   both `20261003_01_owner_authorization.sql` and
+   `20261003_atomic_menu_publication.sql` together in an isolated environment.
+   Preserve customer inserts without RETURNING: anonymous reads of customer rows
+   are intentionally denied. Old admin builds without real authentication lose
+   access after secure policies are activated.
+3. Reconcile the published menu with the approved source. Verify all names/prices
+   and menu refresh on customer devices. Missing categories still retain defaults.
+4. Identify installed TestFlight commit/runtime/channel/update ID. Verify a 1.0.9
+   native binary: startup, date selection, cart, real owner login, menu editing,
+   orders, bookings, admin sound and customer push. Coordinate the policy/function
+   activation with the working owner app. Do not publish an untested production
+   OTA or treat this draft as a released fix.
 
-No live database writes, builds, submissions, merges, or OTA releases were made
-while preparing this patch. Push receipts/APNs credentials and device crash logs
-remain unverified. Network retries can still duplicate an order if the server
-accepted it but its response was lost; eliminating that requires verified database
-idempotency, rather than guessing the live order schema.
+## Remaining limitations
+
+The 139/129/119 order-type prices remain unchanged and hardcoded. Existing cart
+entries retain captured prices. Order totals are client-provided; server-side
+price calculation is not implemented. Duplicate taps are guarded, but an order
+can still be duplicated after a lost network response and manual resubmission;
+server-side idempotency needs a separate verified change. Push receipts/APNs and
+native device crash logs remain unverified. The production authorization rollout
+and native release are not complete merely because the local tests pass.

@@ -1006,7 +1006,7 @@ function updateFullMenu(category, newItems) {
           </TouchableOpacity>
           {showOrderDatePicker && (
             <DateTimePicker
-              value={orderDate ? new Date(`${orderDate}T12:00:00`) : new Date()}s
+              value={orderDate ? new Date(`${orderDate}T12:00:00`) : new Date()}
               mode="date"
               minimumDate={new Date()}
               onChange={(_, selected) => {

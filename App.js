@@ -366,7 +366,7 @@ async function loadPublishedMenu() {
     category,
     day,
     name: category === 'Lunch' ? item : item[0],
-    price: category === 'Lunch' ? 139 : Number(item[1]),
+    price: category === 'Lunch' ? lunchPrice : Number(item[1]),
     active: true,
   }));
 

@@ -108,11 +108,27 @@ Sallader: [
   ],
 };
 
-const ORDER_TYPES = [
+const DEFAULT_ORDER_TYPES = [
   ['Äta här', 139],
   ['Ta med', 129],
   ['Endast matlåda', 119],
 ];
+
+const PRICE_FIELDS = [['eat_here', 'Äta här'], ['takeaway', 'Ta med'], ['box', 'Endast matlåda']];
+function parseLunchPrice(value) {
+  const text = String(value).trim().replace(',', '.');
+  if (!/^\d{1,4}(\.\d{1,2})?$/.test(text)) return null;
+  const number = Number(text);
+  return number > 0 && number <= 9999 ? number : null;
+}
+function validatePriceRow(row) {
+  if (!row || row.id !== 1 || !Number.isSafeInteger(Number(row.revision)) || Number(row.revision) < 1
+    || PRICE_FIELDS.some(([key]) => parseLunchPrice(row[key]) === null)) {
+    throw new Error('Prisinställningen kunde inte bekräftas.');
+  }
+  return { id: 1, revision: Number(row.revision), ...Object.fromEntries(
+    PRICE_FIELDS.map(([key]) => [key, Number(row[key])])) };
+}
 
 const CATEGORIES = [
   'Lunch',
@@ -174,6 +190,11 @@ export default function App() {
   const menuSnapshot = useRef(null);
   const menuRefreshInProgress = useRef(false);
   const menuLoadAlertShown = useRef(false);
+  const priceSnapshot = useRef(null);
+  const priceFetchInProgress = useRef(null);
+  const priceSaveInProgress = useRef(false);
+  const priceDraftDirty = useRef(false);
+  const priceDraftRevision = useRef(null);
   const readyOrderIds = useRef(new Set());
   const [section, setSection] = useState('Lunch');
    const [expoPushToken, setExpoPushToken] = useState('');
@@ -220,6 +241,13 @@ export default function App() {
 const [fullMenu, setFullMenu] = useState(MENU);
   const [orderType, setOrderType] =
     useState('Äta här');
+
+  const [orderPrices, setOrderPrices] = useState(null);
+  const [pricesAvailable, setPricesAvailable] = useState(false);
+  const [priceDraft, setPriceDraft] = useState({ eat_here: '139', takeaway: '129', box: '119' });
+  const [priceSaving, setPriceSaving] = useState(false);
+  const ORDER_TYPES = orderPrices
+    ? PRICE_FIELDS.map(([key, label]) => [label, orderPrices[key]]) : DEFAULT_ORDER_TYPES;
 
   const [cart, setCart] = useState([]);
   const [showCart, setShowCart] =
@@ -312,6 +340,92 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
   const cartHasBreakfast = cart.some((item) =>
     breakfastNames.has(item.name)
   );
+
+  useEffect(() => {
+    loadOrderPrices();
+    const timer = setInterval(() => {
+      if (AppState.currentState === 'active') loadOrderPrices();
+    }, 30000);
+    const foreground = AppState.addEventListener('change', state => {
+      if (state === 'active') loadOrderPrices();
+    });
+    return () => { clearInterval(timer); foreground.remove(); };
+  }, []);
+
+  useEffect(() => {
+    if (!orderPrices) return;
+    setCart(old => old.map(item => ({ ...item,
+      price: mealPrice(item.basePrice ?? item.price, item.category) })));
+  }, [orderPrices, orderType]);
+
+  async function loadOrderPrices() {
+    if (priceFetchInProgress.current) return priceFetchInProgress.current;
+    const request = (async () => {
+      try {
+        const { data, error } = await supabase.from('order_type_prices')
+          .select('id,eat_here,takeaway,box,revision').eq('id', 1).single();
+        if (error) throw error;
+        const row = validatePriceRow(data);
+        if (!priceSnapshot.current || row.revision > priceSnapshot.current.revision) {
+          priceSnapshot.current = row;
+          setOrderPrices(row);
+          if (!priceDraftDirty.current) {
+            priceDraftRevision.current = row.revision;
+            setPriceDraft(Object.fromEntries(PRICE_FIELDS.map(([key]) => [key, String(row[key])])));
+          }
+        }
+        setPricesAvailable(true);
+        return row;
+      } catch (error) {
+        setPricesAvailable(false);
+        console.log('Priserna kunde inte hämtas:', error);
+        return null;
+      }
+    })();
+    priceFetchInProgress.current = request;
+    try { return await request; } finally { priceFetchInProgress.current = null; }
+  }
+
+  async function saveOrderPrices() {
+    if (priceSaveInProgress.current) return;
+    const values = Object.fromEntries(PRICE_FIELDS.map(([key]) => [key, parseLunchPrice(priceDraft[key])]));
+    if (Object.values(values).some(value => value === null)) {
+      Alert.alert('Lunchpriser', 'Ange ett pris mellan 0,01 och 9999 kr, med högst två decimaler.');
+      return;
+    }
+    if (!priceSnapshot.current) {
+      Alert.alert('Lunchpriser', 'Hämta den aktuella prisinställningen innan du sparar.');
+      return;
+    }
+    priceSaveInProgress.current = true;
+    setPriceSaving(true);
+    try {
+      const { data, error } = await supabase.rpc('set_order_type_prices', {
+        p_revision: priceDraftRevision.current ?? priceSnapshot.current.revision, p_eat_here: values.eat_here,
+        p_takeaway: values.takeaway, p_box: values.box,
+      });
+      if (error) throw error;
+      const row = validatePriceRow(data);
+      priceSnapshot.current = row;
+      setOrderPrices(row);
+      setPricesAvailable(true);
+      priceDraftDirty.current = false;
+      priceDraftRevision.current = row.revision;
+      setPriceDraft(Object.fromEntries(PRICE_FIELDS.map(([key]) => [key, String(row[key])])));
+      Alert.alert('Lunchpriser', 'Priserna är sparade. Kundernas appar hämtar dem automatiskt.');
+    } catch (error) {
+      Alert.alert('Lunchpriser', 'Priserna kunde inte sparas. Kontrollera behörigheten och hämta aktuella priser innan du försöker igen.');
+      priceDraftDirty.current = false;
+      await loadOrderPrices();
+      if (priceSnapshot.current) {
+        priceDraftRevision.current = priceSnapshot.current.revision;
+        setPriceDraft(Object.fromEntries(PRICE_FIELDS.map(([key]) => [key, String(priceSnapshot.current[key])])));
+      }
+    } finally {
+      priceSaveInProgress.current = false;
+      setPriceSaving(false);
+    }
+  }
 
    useEffect(() => {
     if (admin) return;
@@ -473,7 +587,7 @@ async function loadPublishedMenu() {
  }
 
  function addToCart(name, basePrice, category) {
-  if (!menuAvailable) {
+  if (!menuAvailable || !pricesAvailable) {
     Alert.alert('Meny', 'Vänta tills den aktuella menyn har hämtats.');
     return;
   }
@@ -531,7 +645,7 @@ async function loadPublishedMenu() {
 
   async function sendOrder() {
     if (orderSubmitInProgress.current) return;
-    if (!menuAvailable) {
+    if (!menuAvailable || !pricesAvailable) {
       Alert.alert('Meny', 'Den aktuella menyn måste hämtas innan du beställer.');
       return;
     }
@@ -561,6 +675,16 @@ async function loadPublishedMenu() {
 
     orderSubmitInProgress.current = true;
     try {
+    const displayedRevision = orderPrices?.revision;
+    const latestPrices = await loadOrderPrices();
+    if (!latestPrices) {
+      Alert.alert('Lunchpriser', 'Aktuella priser kunde inte hämtas. Försök igen när anslutningen fungerar.');
+      return;
+    }
+    if (latestPrices.revision !== displayedRevision) {
+      Alert.alert('Lunchpriser', 'Priserna har ändrats. Kontrollera den uppdaterade kundkorgen och beställ igen.');
+      return;
+    }
     const { error } = await supabase
       .from('orders')
       .insert({
@@ -1328,7 +1452,7 @@ onAdd={() => {
                 <Food
                   key={name}
                   name={name}
-                  price={price}
+                  price={mealPrice(price, section, 'Äta här')}
  onAdd={() =>
   addToCart(
     name,
@@ -1586,6 +1710,21 @@ onAdd={() => {
               <Text style={styles.success}>
                 ✓ Inloggad som admin
               </Text>
+
+              <Text style={styles.adminHeading}>Lunchpriser</Text>
+              {PRICE_FIELDS.map(([key, label]) => (
+                <View key={key}>
+                  <Text style={styles.muted}>{label} (kr)</Text>
+                  <TextInput style={styles.field} keyboardType="decimal-pad"
+                    value={priceDraft[key]} editable={!priceSaving}
+                    onChangeText={value => {
+                      priceDraftDirty.current = true;
+                      setPriceDraft(old => ({ ...old, [key]: value }));
+                    }} />
+                </View>
+              ))}
+              <AppButton title={priceSaving ? 'Sparar priser…' : 'Spara lunchpriser'}
+                onPress={saveOrderPrices} />
 
               <AppButton
                 title="Uppdatera beställningar"

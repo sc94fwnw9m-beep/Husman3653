@@ -2,7 +2,7 @@
   "name": "husman-lunchrestaurang",
   "version": "1.0.9",
   "private": true,
-  "main": "node_modules/expo/AppEntry.js",
+  "main": "index.js",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",

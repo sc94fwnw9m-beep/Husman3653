@@ -17,6 +17,9 @@ declare
   position integer := 0;
   affected integer;
 begin
+  if not public.is_restaurant_admin() then
+    raise exception 'Restaurant owner authorization required';
+  end if;
   if auth.uid() is null then
     raise exception 'Authentication required';
   end if;

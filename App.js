@@ -587,20 +587,30 @@ async function loadPublishedMenu() {
     setBookingMessage('');
   }
 
+  
   async function login() {
   if (ownerCode.trim() !== OWNER_CODE) {
     Alert.alert('Admin', 'Fel ägarkod.');
     return;
   }
 
-  if (!adminEmail.trim()) {
-    Alert.alert('Admin', 'Fyll i e-post.');
+  if (!adminEmail.trim() || !adminPassword.trim()) {
+    Alert.alert('Admin', 'Fyll i e-post och lösenord.');
     return;
   }
 
+  const { error } = await supabase.auth.signInWithPassword({
+    email: adminEmail.trim(),
+    password: adminPassword,
+  });
 
-setAdmin(true);
-     }
+  if (error) {
+    Alert.alert('Admin', 'Fel e-post eller lösenord.');
+    return;
+  }
+
+  setAdmin(true);
+}
 async function logout() {
   await supabase.auth.signOut();
 

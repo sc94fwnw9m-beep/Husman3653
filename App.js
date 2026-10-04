@@ -21,7 +21,6 @@ const supabaseUrl = 'https://qryynhzavlevuejpdtos.supabase.co';
 const supabaseKey = 'sb_publishable_-DLe2m1LORuyuro1OkXu0g_M739wwVV';
 
 const supabase = createClient(supabaseUrl, supabaseKey);
-const OWNER_CODE = '3653';
 
 const DEFAULT_LUNCH = {
   Måndag: [
@@ -264,7 +263,7 @@ const [fullMenu, setFullMenu] = useState(MENU);
 
   const [adminEmail, setAdminEmail] =
     useState('');
-const [adminPassword, setAdminPassword] = useState('');
+  const ownerLoginInProgress = useRef(false);
 
   const [ownerCode, setOwnerCode] = useState('');
   const [showAdminLogin, setShowAdminLogin] = useState(false);
@@ -665,26 +664,31 @@ async function loadPublishedMenu() {
   }
 
   async function login() {
-    if (ownerCode.trim() !== OWNER_CODE) {
-      Alert.alert('Admin', 'Fel ägarkod.');
+    if (ownerLoginInProgress.current) return;
+    if (!adminEmail.trim() || !/^\d{8,12}$/.test(ownerCode.trim())) {
+      Alert.alert('Admin', 'Fyll i e-post och din privata ägarkod (8–12 siffror).');
       return;
     }
-    if (!adminEmail.trim() || !adminPassword) {
-      Alert.alert('Admin', 'Fyll i e-post och lösenord.');
-      return;
-    }
+    ownerLoginInProgress.current = true;
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: adminEmail.trim(), password: adminPassword,
+      const { data, error } = await supabase.functions.invoke('owner-login', {
+        body: { email: adminEmail.trim().toLowerCase(), code: ownerCode.trim() },
       });
-      if (error || !data.session) {
-        Alert.alert('Admin', 'Inloggningen misslyckades. Kontrollera e-post och lösenord.');
+      if (error || !data?.access_token || !data?.refresh_token) {
+        Alert.alert('Admin', 'Kunde inte logga in. Kontrollera e-post och ägarkod. Vid flera felaktiga försök, vänta 15 minuter.');
+        return;
+      }
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: data.access_token, refresh_token: data.refresh_token,
+      });
+      if (sessionError) {
+        Alert.alert('Admin', 'Kunde inte bekräfta inloggningen. Försök igen.');
         return;
       }
       const { data: isOwner, error: ownerError } = await supabase.rpc('is_restaurant_admin');
       if (ownerError || isOwner !== true) {
         await supabase.auth.signOut();
-        setAdminPassword('');
+        setOwnerCode('');
         Alert.alert('Admin', 'Kontot saknar restaurangens ägarbehörighet.');
         return;
       }
@@ -692,16 +696,17 @@ async function loadPublishedMenu() {
       setEditDish1(dishes[0] || '');
       setEditDish2(dishes[1] || '');
       setEditDish3(dishes[2] || '');
-      setAdminPassword('');
+      setOwnerCode('');
       setAdmin(true);
     } catch (error) {
       Alert.alert('Admin', 'Kunde inte logga in just nu.');
+    } finally {
+      ownerLoginInProgress.current = false;
     }
   }
 async function logout() {
   await supabase.auth.signOut();
 
-  setAdminPassword('');
   setOwnerCode('');
   setAdmin(false);
   setOrders([]);
@@ -1541,7 +1546,7 @@ onAdd={() => {
                 value={ownerCode}
                 onChangeText={setOwnerCode}
                 placeholder="Ägarkod"
-                maxLength={4}
+                maxLength={12}
               />
 
               <TextInput
@@ -1553,15 +1558,6 @@ onAdd={() => {
                   setAdminEmail
                 }
                 placeholder="E-post"
-              />
-              <TextInput
-                style={styles.field}
-                autoCapitalize="none"
-                autoCorrect={false}
-                secureTextEntry
-                value={adminPassword}
-                onChangeText={setAdminPassword}
-                placeholder="Lösenord"
               />
 
         

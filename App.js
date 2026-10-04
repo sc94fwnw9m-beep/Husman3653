@@ -180,6 +180,7 @@ export default function App() {
   const menuRefreshInProgress = useRef(false);
   const menuLoadAlertShown = useRef(false);
   const readyOrderIds = useRef(new Set());
+  const deletingBookingIds = useRef(new Set());
   const [section, setSection] = useState('Lunch');
    const [expoPushToken, setExpoPushToken] = useState('');
    useEffect(() => {
@@ -824,6 +825,37 @@ async function logout() {
     } catch (error) {
       Alert.alert('SMS-appen kunde inte öppnas', text);
     }
+  }
+
+  function confirmDeleteBooking(booking) {
+    Alert.alert(
+      'Radera bokning?',
+      `Bokningen den ${booking.booking_date} kl. ${booking.booking_time} för ${booking.guests || 2} personer tas bort. Kunden får inget automatiskt meddelande om raderingen.`,
+      [
+        { text: 'Avbryt', style: 'cancel' },
+        {
+          text: 'Radera',
+          style: 'destructive',
+          onPress: async () => {
+            if (deletingBookingIds.current.has(booking.id)) return;
+            deletingBookingIds.current.add(booking.id);
+            try {
+              const { data, error } = await supabase.from('bookings')
+                .delete().eq('id', booking.id).select('id');
+              if (error || !data?.length) {
+                Alert.alert('Bokning', 'Bokningen kunde inte raderas. Uppdatera bokningarna och försök igen.');
+                return;
+              }
+              setBookings(current => current.filter(item => item.id !== booking.id));
+            } catch (error) {
+              Alert.alert('Bokning', 'Bokningen kunde inte raderas just nu. Försök igen.');
+            } finally {
+              deletingBookingIds.current.delete(booking.id);
+            }
+          },
+        },
+      ]
+    );
   }
 
   function bookingReply(booking) {
@@ -1777,6 +1809,8 @@ onAdd={() => {
                     title={String(booking.message || '').includes('Catering och festlokal') ? 'Återkom med pris • SMS' : 'Bekräfta bord • SMS'}
                     onPress={() => bookingReply(booking)}
                   />
+                  <AppButton title="Radera bokning" outline
+                    onPress={() => confirmDeleteBooking(booking)} />
                   {!!booking.message && (
                     <Text style={styles.orderMessage}>{booking.message}</Text>
                   )}
@@ -2482,4 +2516,5 @@ const styles = StyleSheet.create({
 
 
               
+
 

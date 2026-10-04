@@ -3,6 +3,7 @@ import {
   Alert,
   AppState,
   Image,
+  Linking,
   Platform,
   Pressable,
   SafeAreaView,
@@ -17,6 +18,11 @@ import { StatusBar } from 'expo-status-bar';
 import { createClient } from '@supabase/supabase-js';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Notifications from 'expo-notifications';
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false,
+  }),
+});
 const supabaseUrl = 'https://qryynhzavlevuejpdtos.supabase.co';
 const supabaseKey = 'sb_publishable_-DLe2m1LORuyuro1OkXu0g_M739wwVV';
 
@@ -338,16 +344,19 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
       loadOrders();
       loadBookings();
 
-      const timer = setInterval(() => {
-        if (AppState.currentState === 'active') loadOrders(true);
-      }, 15000);
-      const foreground = AppState.addEventListener('change', (state) => {
-        if (state === 'active') loadOrders(true);
+      const refresh = () => {
+        if (AppState.currentState === 'active') { loadOrders(true); loadBookings(); }
+      };
+      const channel = supabase.channel('admin-orders-bookings')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, refresh)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, refresh)
+        .subscribe();
+      const timer = setInterval(refresh, 15000);
+      const foreground = AppState.addEventListener('change', state => {
+        if (state === 'active') refresh();
       });
-
       return () => {
-        clearInterval(timer);
-        foreground.remove();
+        clearInterval(timer); foreground.remove(); supabase.removeChannel(channel);
       };
     }
   }, [admin]);
@@ -731,6 +740,9 @@ async function logout() {
         const player = orderSound.current;
         if (player) {
           try {
+            const { setAudioModeAsync } = require('expo-audio');
+            await setAudioModeAsync({ playsInSilentMode: true });
+            player.volume = 1;
             await player.seekTo(0);
             player.play();
           } catch (soundError) {
@@ -786,6 +798,51 @@ async function logout() {
     if (!error) setBookings(data || []);
   }
 
+  async function testOrderSound() {
+    try {
+      const player = orderSound.current;
+      if (!player) throw new Error('Ljudet laddas fortfarande.');
+      const { setAudioModeAsync } = require('expo-audio');
+      await setAudioModeAsync({ playsInSilentMode: true });
+      player.volume = 1;
+      await player.seekTo(0);
+      player.play();
+    } catch (error) {
+      Alert.alert('Orderljud', 'Ljudet kunde inte spelas. Kontrollera telefonens volym och försök igen.');
+    }
+  }
+
+  async function openCustomerSms(phone, text) {
+    const recipient = String(phone || '').replace(/[\s()-]/g, '');
+    if (!/^\+?\d{7,15}$/.test(recipient)) {
+      Alert.alert('SMS', 'Kunden saknar ett giltigt telefonnummer.');
+      return;
+    }
+    try {
+      const separator = Platform.OS === 'ios' ? '&' : '?';
+      await Linking.openURL(`sms:${recipient}${separator}body=${encodeURIComponent(text)}`);
+    } catch (error) {
+      Alert.alert('SMS-appen kunde inte öppnas', text);
+    }
+  }
+
+  function bookingReply(booking) {
+    const isEvent = String(booking.message || '').includes('Catering och festlokal');
+    const text = isEvent
+      ? `Hej ${booking.customer_name || ''}! Tack för din förfrågan om catering eller festlokal den ${booking.booking_date} kl. ${booking.booking_time}. Vi återkommer med pris och mer information. Varma hälsningar, Husman Lunchrestaurang.`
+      : `Hej ${booking.customer_name || ''}! Din bordsbokning är bekräftad den ${booking.booking_date} kl. ${booking.booking_time} för ${booking.guests || 2} personer. Vi ser fram emot att välkomna dig! Hälsningar, Husman Lunchrestaurang.`;
+    Alert.alert(isEvent ? 'Återkom med pris' : 'Bekräfta bord', text, [
+      { text: 'Avbryt', style: 'cancel' },
+      { text: 'Öppna SMS', onPress: () => openCustomerSms(booking.phone, text) },
+    ]);
+  }
+
+  function readyMessage(order) {
+    return order.order_type === 'Äta här'
+      ? 'Din mat är färdig att serveras! Smaklig måltid och varmt välkommen åter till Husman Lunchrestaurang.'
+      : 'Din mat är färdig att hämtas! Välkommen till Husman Lunchrestaurang. Smaklig måltid och varmt välkommen åter!';
+  }
+
   async function foodReady(order) {
     if (readyOrderIds.current.has(order.id)) return;
     readyOrderIds.current.add(order.id);
@@ -805,7 +862,7 @@ async function logout() {
             headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
             body: JSON.stringify({
               to: order.push_token, sound: 'default',
-              title: 'Husman Lunchrestaurang', body: 'Din mat är färdig!',
+              title: 'Din mat är färdig! 🍽️', body: readyMessage(order),
             }),
           });
           const result = await response.json();
@@ -817,8 +874,11 @@ async function logout() {
         }
       }
       Alert.alert('Maten färdig', pushAccepted
-        ? 'Beställningen är klar och Expo har tagit emot pushnotisen.'
-        : 'Beställningen är klar, men ingen pushnotis kunde bekräftas.');
+        ? 'Beställningen är klar och notisen är mottagen av Expo. Du kan också skicka SMS.'
+        : 'Beställningen är klar. Ingen pushnotis kunde bekräftas. Skicka gärna SMS.', [
+          { text: 'OK' },
+          { text: 'Öppna SMS', onPress: () => openCustomerSms(order.phone, readyMessage(order)) },
+        ]);
       await loadOrders();
     } catch (error) {
       Alert.alert('Maten färdig', 'Kunde inte bekräfta ändringen just nu.');
@@ -1582,6 +1642,7 @@ onAdd={() => {
                 }}
               />
 
+              <AppButton title="Testa orderljud" outline onPress={testOrderSound} />
               <Text
                 style={
                   styles.adminHeading
@@ -1687,6 +1748,10 @@ onAdd={() => {
                     />
                   )}
                   {order.status === 'Maten färdig' && (
+                    <AppButton title="Skicka SMS • Maten färdig" outline
+                      onPress={() => openCustomerSms(order.phone, readyMessage(order))} />
+                  )}
+                  {order.status === 'Maten färdig' && (
                     <AppButton
                       title="Radera beställning"
                       outline
@@ -1708,6 +1773,10 @@ onAdd={() => {
                     {booking.booking_date} kl. {booking.booking_time}
                   </Text>
                   <Text>{booking.guests || 2} personer</Text>
+                  <AppButton
+                    title={String(booking.message || '').includes('Catering och festlokal') ? 'Återkom med pris • SMS' : 'Bekräfta bord • SMS'}
+                    onPress={() => bookingReply(booking)}
+                  />
                   {!!booking.message && (
                     <Text style={styles.orderMessage}>{booking.message}</Text>
                   )}
@@ -2413,3 +2482,4 @@ const styles = StyleSheet.create({
 
 
               
+

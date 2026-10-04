@@ -113,7 +113,7 @@ Sallader: [
   ],
 };
 
-const ORDER_TYPES = [
+const DEFAULT_ORDER_TYPES = [
   ['Äta här', 139],
   ['Ta med', 129],
   ['Endast matlåda', 119],
@@ -248,6 +248,11 @@ export default function App() {
     useState(DEFAULT_LUNCH);
   const [menuAvailable, setMenuAvailable] = useState(false);
 const [fullMenu, setFullMenu] = useState(MENU);
+  const [ORDER_TYPES, setOrderTypes] = useState(DEFAULT_ORDER_TYPES);
+  const [editLunchPrices, setEditLunchPrices] = useState(false);
+  const [priceDraft, setPriceDraft] = useState(['139', '129', '119']);
+  const priceSaveInProgress = useRef(false);
+  const [savingPrices, setSavingPrices] = useState(false);
   const [orderType, setOrderType] =
     useState('Äta här');
 
@@ -395,6 +400,14 @@ async function loadPublishedMenu() {
     .order('id', { ascending: true });
 
   if (error) throw error;
+  const { data: prices, error: priceError } = await supabase.from('husman_lunch_prices')
+    .select('dine_in,takeaway,box_only').eq('id', 1).single();
+  if (priceError || !prices || [prices.dine_in, prices.takeaway, prices.box_only]
+    .some(value => !Number.isFinite(Number(value)) || Number(value) <= 0)) {
+    throw priceError || new Error('Lunchpriserna kunde inte hämtas.');
+  }
+  setOrderTypes(DEFAULT_ORDER_TYPES.map(([name], index) =>
+    [name, Number([prices.dine_in, prices.takeaway, prices.box_only][index])]));
   if (!data?.length) throw new Error('Ingen publicerad meny kunde bekräftas.');
   if (data.some((row) => row.active !== false
     && (row.category === 'Lunch' || Object.prototype.hasOwnProperty.call(MENU, row.category)) && (
@@ -450,7 +463,7 @@ async function loadPublishedMenu() {
   }
   const rows = items.map((item) => ({
     name: category === 'Lunch' ? item : item[0],
-    price: category === 'Lunch' ? 139 : Number(item[1]),
+    price: category === 'Lunch' ? ORDER_TYPES[0][1] : Number(item[1]),
   }));
   if (rows.some((row) => typeof row.name !== 'string' || !row.name.trim()
     || !Number.isFinite(row.price) || row.price <= 0)) {
@@ -493,7 +506,38 @@ async function loadPublishedMenu() {
   const base = Number(basePrice);
   if (['Frukost', 'Frysta matlådor'].includes(category)) return base;
   const selectedPrice = ORDER_TYPES.find(([name]) => name === type)?.[1] ?? 139;
-  return category === 'Lunch' ? selectedPrice : Math.max(1, base + selectedPrice - 139);
+  return category === 'Lunch' ? selectedPrice : Math.max(1, base + selectedPrice - ORDER_TYPES[0][1]);
+ }
+
+ useEffect(() => {
+  setCart(old => old.map(item => ({ ...item,
+    price: mealPrice(item.basePrice ?? item.price, item.category, orderType),
+  })));
+ }, [ORDER_TYPES]);
+
+ async function saveLunchPrices() {
+  if (priceSaveInProgress.current) return;
+  const values = priceDraft.map(value => Number(value.trim().replace(',', '.')));
+  if (values.some(value => !Number.isFinite(value) || value <= 0 || value > 10000)) {
+    Alert.alert('Lunchpriser', 'Skriv ett giltigt pris mellan 1 och 10 000 kr i varje ruta.');
+    return;
+  }
+  priceSaveInProgress.current = true;
+  setSavingPrices(true);
+  try {
+    const { data, error } = await supabase.from('husman_lunch_prices')
+      .update({ dine_in: values[0], takeaway: values[1], box_only: values[2] })
+      .eq('id', 1).select('dine_in,takeaway,box_only').single();
+    if (error || !data) throw error || new Error('Priserna sparades inte.');
+    setOrderTypes(DEFAULT_ORDER_TYPES.map(([name], index) => [name, values[index]]));
+    setEditLunchPrices(false);
+    Alert.alert('Klart', 'Lunchpriserna är sparade. Kunderna får de nya priserna automatiskt.');
+  } catch (error) {
+    Alert.alert('Lunchpriser', 'Kunde inte spara priserna. Dina ändringar finns kvar så att du kan försöka igen.');
+  } finally {
+    priceSaveInProgress.current = false;
+    setSavingPrices(false);
+  }
  }
 
  function selectOrderType(name) {
@@ -1704,6 +1748,29 @@ onAdd={() => {
               />
 
               <AppButton title="Testa orderljud" outline onPress={testOrderSound} />
+              <AppButton title="Ändra lunchpriser" outline onPress={() => {
+                setPriceDraft(ORDER_TYPES.map(([, price]) => String(price)));
+                setEditLunchPrices(true);
+              }} />
+              {editLunchPrices && (
+                <View style={styles.orderCard}>
+                  <Text style={styles.adminHeading}>Lunchpriser</Text>
+                  {ORDER_TYPES.map(([name], index) => (
+                    <View key={name}>
+                      <Text style={styles.muted}>{name} (kr)</Text>
+                      <TextInput style={styles.field} keyboardType="decimal-pad"
+                        value={priceDraft[index]} editable={!savingPrices}
+                        onChangeText={value => setPriceDraft(current =>
+                          current.map((price, position) => position === index ? value : price))} />
+                    </View>
+                  ))}
+                  <AppButton title={savingPrices ? 'Sparar…' : 'Spara lunchpriser'}
+                    onPress={saveLunchPrices} />
+                  {!savingPrices && <AppButton title="Avbryt" outline
+                    onPress={() => setEditLunchPrices(false)} />}
+                </View>
+              )}
+
               <Text
                 style={
                   styles.adminHeading

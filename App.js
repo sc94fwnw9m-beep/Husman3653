@@ -156,16 +156,39 @@ const formatDate = (date) => {
 };
 const formatTime = (date) => date.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
 
-function AdminOrderSound({ soundRef }) {
-  const { useAudioPlayer } = require('expo-audio');
+function AdminOrderSound({ soundRef, ringing }) {
+  const { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } = require('expo-audio');
   const player = useAudioPlayer(require('./assets/new-order.wav'));
+  const status = useAudioPlayerStatus(player);
 
   useEffect(() => {
     soundRef.current = player;
-    return () => {
-      soundRef.current = null;
-    };
+    return () => { soundRef.current = null; };
   }, [player, soundRef]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!status.isLoaded) return;
+    if (!ringing) {
+      player.pause();
+      player.loop = false;
+      return;
+    }
+    async function startRinging() {
+      try {
+        await setAudioModeAsync({ playsInSilentMode: true });
+        if (cancelled) return;
+        player.volume = 1;
+        player.loop = true;
+        await player.seekTo(0);
+        if (!cancelled) player.play();
+      } catch (error) {
+        console.log('Orderljudet kunde inte spelas:', error);
+      }
+    }
+    startRinging();
+    return () => { cancelled = true; player.pause(); };
+  }, [player, ringing, status.isLoaded]);
 
   return null;
 }
@@ -180,6 +203,7 @@ export default function App() {
   const menuRefreshInProgress = useRef(false);
   const menuLoadAlertShown = useRef(false);
   const readyOrderIds = useRef(new Set());
+  const acceptingOrderIds = useRef(new Set());
   const deletingBookingIds = useRef(new Set());
   const [section, setSection] = useState('Lunch');
    const [expoPushToken, setExpoPushToken] = useState('');
@@ -735,22 +759,6 @@ async function logout() {
       if (error) throw error;
       const latest = data || [];
       const ids = new Set(latest.map((order) => String(order.id)));
-      if (knownOrderIds.current !== null && latest.some(
-        (order) => !knownOrderIds.current.has(String(order.id))
-      )) {
-        const player = orderSound.current;
-        if (player) {
-          try {
-            const { setAudioModeAsync } = require('expo-audio');
-            await setAudioModeAsync({ playsInSilentMode: true });
-            player.volume = 1;
-            await player.seekTo(0);
-            player.play();
-          } catch (soundError) {
-            console.log('Orderljudet kunde inte spelas:', soundError);
-          }
-        }
-      }
       knownOrderIds.current = ids;
       setOrders(latest);
     } catch (error) {
@@ -797,6 +805,26 @@ async function logout() {
       .order('booking_date', { ascending: true });
 
     if (!error) setBookings(data || []);
+  }
+
+  async function acceptOrder(order) {
+    if (acceptingOrderIds.current.has(order.id)) return;
+    acceptingOrderIds.current.add(order.id);
+    try {
+      const { data, error } = await supabase.from('orders')
+        .update({ status: 'Accepterad' }).eq('id', order.id).eq('status', 'Ny').select('id');
+      if (error || !data?.length) {
+        Alert.alert('Beställning', 'Beställningen kunde inte accepteras. Uppdatera beställningarna och försök igen.');
+        return;
+      }
+      setOrders(current => current.map(item =>
+        item.id === order.id ? { ...item, status: 'Accepterad' } : item
+      ));
+    } catch (error) {
+      Alert.alert('Beställning', 'Beställningen kunde inte accepteras just nu. Försök igen.');
+    } finally {
+      acceptingOrderIds.current.delete(order.id);
+    }
   }
 
   async function testOrderSound() {
@@ -1263,7 +1291,8 @@ function updateFullMenu(category, newItems) {
         }
       >
         <Header onAdminOpen={() => setShowAdminLogin(true)} />
-        {admin && <AdminOrderSound soundRef={orderSound} />}
+        {admin && <AdminOrderSound soundRef={orderSound}
+          ringing={orders.some(order => (order.status || 'Ny') === 'Ny')} />}
 
         <View style={styles.hero}>
           <Image source={{ uri: FOOD_IMAGES.Lunch }} style={styles.heroImage} />
@@ -1770,6 +1799,10 @@ onAdd={() => {
                     {order.total || 0} kr
                   </Text>
 
+                  {(order.status || 'Ny') === 'Ny' && (
+                    <AppButton title="Acceptera beställning"
+                      onPress={() => acceptOrder(order)} />
+                  )}
                   {order.status !==
                     'Maten färdig' && (
                     <AppButton
@@ -2516,5 +2549,6 @@ const styles = StyleSheet.create({
 
 
               
+
 
 

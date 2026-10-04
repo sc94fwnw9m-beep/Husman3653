@@ -2,7 +2,7 @@
   "expo": {
     "name": "Husman Lunchrestaurang",
     "slug": "husman-lunchrestaurang",
-    "version": "1.0.7",
+    "version": "1.0.9",
     "extra": {
       "eas": {
         "projectId": "d2f4d05f-9222-4f0a-8408-22acea729cc9"
@@ -51,3 +51,4 @@
     }
   }
 }
+

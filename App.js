@@ -196,6 +196,9 @@ function AdminOrderSound({ soundRef, ringing }) {
 export default function App() {
   const orderSound = useRef(null);
   const knownOrderIds = useRef(null);
+  const seenOrdersAtLogin = useRef(null);
+  const seenBookingsAtLogin = useRef(null);
+  const adminSessionId = useRef(0);
   const orderRefreshInProgress = useRef(false);
   const orderSubmitInProgress = useRef(false);
   const menuPublishInProgress = useRef(false);
@@ -210,6 +213,14 @@ export default function App() {
    useEffect(() => {
   async function registerForPushNotifications() {
     try {
+      if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('owner-orders', {
+          name: 'Nya matbeställningar',
+          importance: Notifications.AndroidImportance.MAX,
+          sound: 'default',
+          vibrationPattern: [0, 500, 200, 500],
+        });
+      }
       const { status: existingStatus } =
         await Notifications.getPermissionsAsync();
 
@@ -296,6 +307,52 @@ const [fullMenu, setFullMenu] = useState(MENU);
   // Admin
   const [admin, setAdmin] =
     useState(false);
+  const [ownerPushStatus, setOwnerPushStatus] = useState('');
+  useEffect(() => {
+    Notifications.setNotificationHandler({
+      handleNotification: async notification => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        // In the owner panel the existing order alarm provides the sound.
+        shouldPlaySound: !(admin && notification.request.content.data?.type === 'owner-order'),
+        shouldSetBadge: false,
+      }),
+    });
+  }, [admin]);
+  useEffect(() => {
+    if (!admin) return;
+    let cancelled = false;
+    async function registerOwnerDevice() {
+      const permission = await Notifications.getPermissionsAsync();
+      if (cancelled) return;
+      if (permission.status !== 'granted') {
+        setOwnerPushStatus('Tillåt notiser och ljud i telefonens inställningar.');
+        return;
+      }
+      if (!expoPushToken) {
+        setOwnerPushStatus('Väntar på mobilens notisregistrering.');
+        return;
+      }
+      const { error } = await supabase.rpc('register_owner_push_device', { p_token: expoPushToken });
+      if (!cancelled) setOwnerPushStatus(error
+        ? 'Ägarnotiser kunde inte aktiveras. Försök igen vid nästa inloggning.'
+        : 'Ägarnotiser aktiverade på denna mobil, även när appen är stängd.');
+    }
+    registerOwnerDevice().catch(() => {
+      if (!cancelled) setOwnerPushStatus('Ägarnotiser kunde inte aktiveras just nu.');
+    });
+    return () => { cancelled = true; };
+  }, [admin, expoPushToken]);
+  useEffect(() => {
+    const openOrderNotification = response => {
+      if (response?.notification.request.content.data?.type === 'owner-order') {
+        setShowAdminLogin(true);
+      }
+    };
+    const listener = Notifications.addNotificationResponseReceivedListener(openOrderNotification);
+    Notifications.getLastNotificationResponseAsync().then(openOrderNotification).catch(() => {});
+    return () => listener.remove();
+  }, []);
 
   const [adminEmail, setAdminEmail] =
     useState('');
@@ -778,7 +835,17 @@ async function loadPublishedMenu() {
       setEditDish2(dishes[1] || '');
       setEditDish3(dishes[2] || '');
       setOwnerCode('');
+      adminSessionId.current += 1;
+      seenOrdersAtLogin.current = null;
+      seenBookingsAtLogin.current = null;
+      orderSound.current?.pause();
       setAdmin(true);
+      // Remove only owner-order notices; customer meal-ready notices remain.
+      Notifications.getPresentedNotificationsAsync().then(notifications =>
+        Promise.all(notifications
+          .filter(item => item.request.content.data?.type === 'owner-order')
+          .map(item => Notifications.dismissNotificationAsync(item.request.identifier)))
+      ).catch(() => {});
     } catch (error) {
       Alert.alert('Admin', 'Kunde inte logga in just nu.');
     } finally {
@@ -786,6 +853,12 @@ async function loadPublishedMenu() {
     }
   }
 async function logout() {
+  adminSessionId.current += 1;
+  orderSound.current?.pause();
+  seenOrdersAtLogin.current = null;
+  seenBookingsAtLogin.current = null;
+  setOwnerPushStatus('');
+  // Device registration stays on the server to notify this owner after logout.
   await supabase.auth.signOut();
 
   setOwnerCode('');
@@ -800,12 +873,15 @@ async function logout() {
   async function loadOrders(silent = false) {
     if (orderRefreshInProgress.current) return;
     orderRefreshInProgress.current = true;
+    const sessionId = adminSessionId.current;
     try {
       const { data, error } = await supabase.from('orders').select('*')
         .order('created_at', { ascending: false });
       if (error) throw error;
+      if (sessionId !== adminSessionId.current) return;
       const latest = data || [];
       const ids = new Set(latest.map((order) => String(order.id)));
+      if (seenOrdersAtLogin.current === null) seenOrdersAtLogin.current = ids;
       knownOrderIds.current = ids;
       setOrders(latest);
     } catch (error) {
@@ -862,12 +938,18 @@ async function logout() {
   }
 
   async function loadBookings() {
+    const sessionId = adminSessionId.current;
     const { data, error } = await supabase
       .from('bookings')
       .select('*')
       .order('booking_date', { ascending: true });
 
-    if (!error) setBookings(data || []);
+    if (!error && sessionId === adminSessionId.current) {
+      if (seenBookingsAtLogin.current === null) {
+        seenBookingsAtLogin.current = new Set((data || []).map(item => String(item.id)));
+      }
+      setBookings(data || []);
+    }
   }
 
   async function acceptOrder(order) {
@@ -902,6 +984,26 @@ async function logout() {
     } catch (error) {
       Alert.alert('Orderljud', 'Ljudet kunde inte spelas. Kontrollera telefonens volym och försök igen.');
     }
+  }
+
+  async function testOwnerNotification() {
+    if (!expoPushToken) {
+      Alert.alert('Ägarnotis', 'Tillåt notiser och vänta på mobilens registrering.');
+      return;
+    }
+    const { error } = await supabase.rpc('test_owner_push_notification', { p_token: expoPushToken });
+    Alert.alert('Ägarnotis', error
+      ? 'Testnotisen kunde inte skickas. Försök igen.'
+      : 'Testnotisen är köad. Kontrollera att den kommer fram med ljud.');
+  }
+
+  async function disableOwnerNotifications() {
+    const { error } = await supabase.rpc('unregister_owner_push_device', { p_token: expoPushToken });
+    if (error) {
+      Alert.alert('Ägarnotis', 'Kunde inte stänga av notiserna. Försök igen.');
+      return;
+    }
+    setOwnerPushStatus('Ägarnotiser avstängda på denna mobil. Logga in igen för att aktivera.');
   }
 
   async function openCustomerSms(phone, text) {
@@ -1361,8 +1463,10 @@ function updateFullMenu(category, newItems) {
       >
         <Header onAdminOpen={() => setShowAdminLogin(true)} />
         {admin && <AdminOrderSound soundRef={orderSound}
-          ringing={orders.some(order => (order.status || 'Ny') === 'Ny')
-            || bookings.some(booking => booking.admin_seen !== true)} />}
+          ringing={orders.some(order => (order.status || 'Ny') === 'Ny'
+            && seenOrdersAtLogin.current !== null && !seenOrdersAtLogin.current.has(String(order.id)))
+            || bookings.some(booking => booking.admin_seen !== true
+              && seenBookingsAtLogin.current !== null && !seenBookingsAtLogin.current.has(String(booking.id)))} />}
 
         <View style={styles.hero}>
           <Image source={{ uri: FOOD_IMAGES.Lunch }} style={styles.heroImage} />
@@ -1774,6 +1878,9 @@ onAdd={() => {
               />
 
               <AppButton title="Testa orderljud" outline onPress={testOrderSound} />
+              {!!ownerPushStatus && <Text style={styles.muted}>{ownerPushStatus}</Text>}
+              <AppButton title="Testa ägarnotis" outline onPress={testOwnerNotification} />
+              <AppButton title="Stäng av ägarnotiser på denna mobil" outline onPress={disableOwnerNotifications} />
               <AppButton title="Ändra lunchpriser" outline onPress={() => {
                 setPriceDraft(ORDER_TYPES.map(([, price]) => String(price)));
                 setEditLunchPrices(true);
@@ -2661,6 +2768,5 @@ const styles = StyleSheet.create({
 
 
               
-
 
 

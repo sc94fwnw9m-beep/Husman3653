@@ -665,8 +665,8 @@ async function loadPublishedMenu() {
 
   async function login() {
     if (ownerLoginInProgress.current) return;
-    if (!adminEmail.trim() || !/^\d{8,12}$/.test(ownerCode.trim())) {
-      Alert.alert('Admin', 'Fyll i e-post och din privata ägarkod (8–12 siffror).');
+    if (!adminEmail.trim() || !/^\d{4,12}$/.test(ownerCode.trim())) {
+      Alert.alert('Admin', 'Fyll i e-post och din ägarkod (4–12 siffror).');
       return;
     }
     ownerLoginInProgress.current = true;

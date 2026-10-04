@@ -307,6 +307,7 @@ const [fullMenu, setFullMenu] = useState(MENU);
   const [orders, setOrders] =
     useState([]);
   const [bookings, setBookings] = useState([]);
+  const acknowledgingBookingIds = useRef(new Set());
 
   // Ändra lunchmeny
   const [editDay, setEditDay] =
@@ -842,6 +843,22 @@ async function logout() {
     );
   }
 
+  async function acknowledgeBooking(booking) {
+    if (acknowledgingBookingIds.current.has(booking.id)) return;
+    acknowledgingBookingIds.current.add(booking.id);
+    try {
+      const { data, error } = await supabase.from('bookings')
+        .update({ admin_seen: true }).eq('id', booking.id).select('id').single();
+      if (error || !data) throw error || new Error('Bokningen kunde inte kvitteras.');
+      setBookings(current => current.map(item =>
+        item.id === booking.id ? { ...item, admin_seen: true } : item));
+    } catch (error) {
+      Alert.alert('Bokning', 'Kunde inte markera bokningen som sedd. Försök igen.');
+    } finally {
+      acknowledgingBookingIds.current.delete(booking.id);
+    }
+  }
+
   async function loadBookings() {
     const { data, error } = await supabase
       .from('bookings')
@@ -1336,7 +1353,8 @@ function updateFullMenu(category, newItems) {
       >
         <Header onAdminOpen={() => setShowAdminLogin(true)} />
         {admin && <AdminOrderSound soundRef={orderSound}
-          ringing={orders.some(order => (order.status || 'Ny') === 'Ny')} />}
+          ringing={orders.some(order => (order.status || 'Ny') === 'Ny')
+            || bookings.some(booking => booking.admin_seen !== true)} />}
 
         <View style={styles.hero}>
           <Image source={{ uri: FOOD_IMAGES.Lunch }} style={styles.heroImage} />
@@ -1905,6 +1923,11 @@ onAdd={() => {
                     {booking.booking_date} kl. {booking.booking_time}
                   </Text>
                   <Text>{booking.guests || 2} personer</Text>
+                  {booking.admin_seen !== true ? (
+                    <AppButton title="Bokning sedd • Stoppa ljud"
+                      onPress={() => acknowledgeBooking(booking)} />
+                  ) : <Text style={styles.success}>✓ Bokningen är sedd</Text>}
+
                   <AppButton
                     title={String(booking.message || '').includes('Catering och festlokal') ? 'Återkom med pris • SMS' : 'Bekräfta bord • SMS'}
                     onPress={() => bookingReply(booking)}

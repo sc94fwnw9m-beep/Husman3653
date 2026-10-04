@@ -324,7 +324,9 @@ const [fullMenu, setFullMenu] = useState(MENU);
 const [newDishName, setNewDishName] = useState('');
 const [newDishPrice, setNewDishPrice] = useState('139');
 const [adminMenuMode, setAdminMenuMode] = useState('edit');
-const [newDishCategory, setNewDishCategory] = useState('Pasta');
+const [newDishCategory, setNewDishCategory] = useState('Lunch');
+const newDishSaving = useRef(false);
+const [savingNewDish, setSavingNewDish] = useState(false);
   const total = useMemo(
     () =>
       cart.reduce(
@@ -1051,46 +1053,52 @@ function updateFullMenu(category, newItems) {
   }));
 }
    async function addNewDish() {
-  if (!newDishName.trim()) {
+  if (newDishSaving.current) return;
+  const name = newDishName.trim();
+  if (!name) {
     Alert.alert('Maträtt', 'Skriv maträttens namn.');
     return;
   }
-
-  const price = Number(newDishPrice);
-
-  if (!price || price <= 0) {
+  const category = newDishCategory;
+  const day = editDay;
+  const isLunch = category === 'Lunch';
+  const price = isLunch ? ORDER_TYPES[0][1] : Number(newDishPrice.replace(',', '.'));
+  if (!Number.isFinite(price) || price <= 0) {
     Alert.alert('Maträtt', 'Skriv ett giltigt pris.');
     return;
   }
-
-  const category = newDishCategory;
-  const isLunch = category === 'Lunch';
   const newItems = isLunch
-    ? [...(weeklyLunch[editDay] || []), newDishName.trim()]
-    : [...(fullMenu[category] || []), [newDishName.trim(), price]];
-
-  const error = await publishMenuSection(
-    category, isLunch ? editDay : '', newItems
-  );
-
-  if (error) {
-    Alert.alert('Fel', 'Maträtten kunde inte sparas.');
-    return;
+    ? [...(weeklyLunch[day] || []), name]
+    : [...(fullMenu[category] || []), [name, price]];
+  newDishSaving.current = true;
+  setSavingNewDish(true);
+  try {
+    const error = await publishMenuSection(category, isLunch ? day : '', newItems);
+    if (error) {
+      if (String(error.message || '').includes('Menu changed elsewhere')) {
+        await loadPublishedMenu();
+        Alert.alert('Menyn har uppdaterats', 'Den senaste menyn har hämtats. Tryck Spara ny maträtt igen. Namnet du skrev finns kvar.');
+      } else {
+        console.log('Ny maträtt kunde inte sparas:', error);
+        Alert.alert('Maträtt', 'Maträtten kunde inte sparas. Namnet finns kvar så att du kan försöka igen.');
+      }
+      return;
+    }
+    if (isLunch) {
+      setWeeklyLunch(old => ({ ...old, [day]: newItems }));
+      setEditDish1(newItems[0] || '');
+      setEditDish2(newItems[1] || '');
+      setEditDish3(newItems[2] || '');
+    } else {
+      setFullMenu(old => ({ ...old, [category]: newItems }));
+    }
+    setNewDishName('');
+    setNewDishPrice(String(ORDER_TYPES[0][1]));
+    Alert.alert('Klart', isLunch ? `Maträtten är tillagd på ${day} och visas för kunderna.` : 'Den nya maträtten är tillagd.');
+  } finally {
+    newDishSaving.current = false;
+    setSavingNewDish(false);
   }
-
-  if (isLunch) {
-    setWeeklyLunch((old) => ({ ...old, [editDay]: newItems }));
-    setEditDish1(newItems[0] || '');
-    setEditDish2(newItems[1] || '');
-    setEditDish3(newItems[2] || '');
-  } else {
-    setFullMenu((old) => ({ ...old, [category]: newItems }));
-  }
-
-  setNewDishName('');
-  setNewDishPrice('139');
-
-  Alert.alert('Klart', 'Den nya maträtten är tillagd.');
 }
    async function deleteDish(category, index) {
   const isLunch = category === 'Lunch';
@@ -1958,7 +1966,7 @@ onAdd={() => {
   <View style={{ flex: 1 }}>
     <AppButton
       title="➕ Lägg till maträtt"
-      onPress={() => setAdminMenuMode('add')}
+      onPress={() => { setNewDishCategory('Lunch'); setAdminMenuMode('add'); }}
     />
   </View>
 </View>
@@ -1981,7 +1989,19 @@ onAdd={() => {
       ))}
     </View>
     {newDishCategory === 'Lunch' && (
-      <Text style={styles.muted}>Läggs till på {editDay} i veckomenyn.</Text>
+      <>
+        <Text style={styles.label}>Välj dag för den nya lunchrätten</Text>
+        <View style={styles.days}>
+          {Object.keys(DEFAULT_LUNCH).map(day => (
+            <TouchableOpacity key={`add-lunch-${day}`} disabled={savingNewDish}
+              onPress={() => openDayForEditing(day)}
+              style={[styles.day, editDay === day && styles.dayActive]}>
+              <Text style={[styles.dayText, editDay === day && styles.dayTextActive]}>{day}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <Text style={styles.muted}>Läggs till på {editDay}. Lunchpriserna används automatiskt.</Text>
+      </>
     )}
     <TextInput
       style={styles.field}
@@ -1990,6 +2010,7 @@ onAdd={() => {
       placeholder="Ny maträtt"
     />
 
+    {newDishCategory !== 'Lunch' && (
     <TextInput
       style={styles.field}
       value={newDishPrice}
@@ -1997,9 +2018,10 @@ onAdd={() => {
       keyboardType="number-pad"
       placeholder="Pris"
     />
+    )}
 
     <AppButton
-      title="Spara ny maträtt"
+      title={savingNewDish ? 'Sparar…' : 'Spara ny maträtt'}
       onPress={addNewDish}
     />
   </>

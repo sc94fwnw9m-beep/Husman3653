@@ -21,7 +21,7 @@ export async function handleOwnerLogin(req: Request): Promise<Response> {
     const url = Deno.env.get('SUPABASE_URL');
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
-    if (!configuredEmail || !configuredCode || !/^\d{8,12}$/.test(configuredCode)
+    if (!configuredEmail || !configuredCode || !/^\d{4,12}$/.test(configuredCode)
       || !url || !serviceKey || !anonKey) return reply(503, { error: 'Inloggningen är inte konfigurerad.' });
     const raw = await req.text();
     if (raw.length > 2048) return fail();

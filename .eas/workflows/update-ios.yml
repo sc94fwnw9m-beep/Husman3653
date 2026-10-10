@@ -1,10 +1,10 @@
-name: Publish iOS update
+name: Publish message keyboard fix for iOS and Android
 
 jobs:
   update_ios:
     type: update
     environment: production
     params:
-      platform: ios
+      platform: all
       channel: production
-      message: 'Initialize order audio only in admin mode'
+      message: 'Keep message field visible above keyboard'

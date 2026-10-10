@@ -232,11 +232,51 @@ export default function App() {
   const [section, setSection] = useState('Lunch');
    const [expoPushToken, setExpoPushToken] = useState('');
   const [offerEnabled, setOfferEnabled] = useState(null);
+  const [customerOffers, setCustomerOffers] = useState([]);
+  const [customerOffersLoading, setCustomerOffersLoading] = useState(false);
+  const [customerOffersError, setCustomerOffersError] = useState('');
+  const [customerOffersRevision, setCustomerOffersRevision] = useState(0);
+  useEffect(() => {
+    if (section !== 'Erbjudanden') return;
+    let active = true;
+    let requestVersion = 0;
+    async function refresh() {
+      const version = ++requestVersion;
+      setCustomerOffersLoading(true);
+      setCustomerOffersError('');
+      try {
+        const { data, error } = await supabase.rpc('list_customer_offers');
+        if (error) throw error;
+        if (active && version === requestVersion) setCustomerOffers(data || []);
+      } catch {
+        if (active && version === requestVersion) {
+          setCustomerOffersError('Erbjudanden kunde inte hämtas. Kontrollera internet och försök igen.');
+        }
+      } finally {
+        if (active && version === requestVersion) setCustomerOffersLoading(false);
+      }
+    }
+    refresh();
+    const foreground = AppState.addEventListener('change', state => {
+      if (state === 'active') refresh();
+    });
+    const timer = setInterval(refresh, 30000);
+    const received = Notifications.addNotificationReceivedListener(notification => {
+      if (notification.request.content.data?.type === 'offer') refresh();
+    });
+    return () => { active = false; clearInterval(timer); foreground.remove(); received.remove(); };
+  }, [section, customerOffersRevision]);
   const [offerPreferenceBusy, setOfferPreferenceBusy] = useState(false);
   const offerPreferenceLock = useRef(false);
   const offerPreferenceRevision = useRef(0);
   const [showOfferEditor, setShowOfferEditor] = useState(false);
   const [showAdminSettings, setShowAdminSettings] = useState(false);
+  const [ownerOffers, setOwnerOffers] = useState([]);
+  const [ownerOffersError, setOwnerOffersError] = useState('');
+  const [ownerOffersLoading, setOwnerOffersLoading] = useState(false);
+  const [ownerOffersRevision, setOwnerOffersRevision] = useState(0);
+  const [changingOfferId, setChangingOfferId] = useState(null);
+  const offerVisibilityLock = useRef(false);
   const [offerTitle, setOfferTitle] = useState('Erbjudande från Husman');
   const [offerBody, setOfferBody] = useState('');
   const [offerAudience, setOfferAudience] = useState(null);
@@ -364,6 +404,20 @@ const [fullMenu, setFullMenu] = useState(MENU);
     useState(false);
   const [ownerPushStatus, setOwnerPushStatus] = useState('');
   useEffect(() => {
+    if (!admin || !showAdminSettings || !showOfferEditor || offerSending) return;
+    let active = true;
+    setOwnerOffersLoading(true);
+    setOwnerOffersError('');
+    supabase.rpc('list_owner_offers').then(({ data, error }) => {
+      if (!active) return;
+      if (error) setOwnerOffersError('Erbjudandena kunde inte hämtas. Försök igen.');
+      else setOwnerOffers(data || []);
+    }).catch(() => {
+      if (active) setOwnerOffersError('Erbjudandena kunde inte hämtas. Kontrollera internet.');
+    }).finally(() => { if (active) setOwnerOffersLoading(false); });
+    return () => { active = false; };
+  }, [admin, showAdminSettings, showOfferEditor, offerSending, ownerOffersRevision]);
+  useEffect(() => {
     Notifications.setNotificationHandler({
       handleNotification: async notification => ({
         shouldShowBanner: true,
@@ -402,6 +456,11 @@ const [fullMenu, setFullMenu] = useState(MENU);
     const openOrderNotification = response => {
       if (response?.notification.request.content.data?.type === 'owner-order') {
         setShowAdminLogin(true);
+      } else if (response?.notification.request.content.data?.type === 'offer') {
+        setShowCart(false);
+        setSection('Erbjudanden');
+        setCustomerOffersRevision(value => value + 1);
+        messageScrollRef.current?.scrollTo({ y: 0, animated: true });
       }
     };
     const listener = Notifications.addNotificationResponseReceivedListener(openOrderNotification);
@@ -944,8 +1003,37 @@ async function loadPublishedMenu() {
       Alert.alert('Erbjudanden', 'Skriv en rubrik och ditt erbjudande.');
       return;
     }
-    Alert.alert('Skicka erbjudande?', `${offerTitle.trim()}\n\n${offerBody.trim()}\n\nSkickas till kunder som har tackat ja till erbjudanden.`, [
+    Alert.alert('Skicka erbjudande?', `${offerTitle.trim()}\n\n${offerBody.trim()}\n\nPubliceras i appens Erbjudanden tills du raderar det och skickas som notis till kunder som har tackat ja. Skriv giltighetstid och villkor i texten.`, [
       { text: 'Avbryt', style: 'cancel' }, { text: 'Skicka', onPress: sendOfferConfirmed },
+    ]);
+  }
+
+  async function changeOfferVisibility(offer, hidden) {
+    if (!admin || offerVisibilityLock.current) return;
+    offerVisibilityLock.current = true;
+    setChangingOfferId(offer.id);
+    try {
+      const { data, error } = await supabase.rpc('set_customer_offer_hidden', {
+        p_id: offer.id, p_hidden: hidden,
+      });
+      if (error || data !== true) throw error || new Error('Erbjudandet hittades inte.');
+      setOwnerOffersRevision(value => value + 1);
+      setCustomerOffersRevision(value => value + 1);
+      Alert.alert('Erbjudanden', hidden
+        ? 'Erbjudandet är borttaget från kundlistan. Redan skickade notiser finns kvar på mobilen. Du kan återställa erbjudandet med Visa igen.'
+        : 'Erbjudandet visas igen i kundlistan. Ingen ny notis skickas.');
+    } catch {
+      Alert.alert('Erbjudanden', 'Ändringen kunde inte sparas. Kontrollera internet och försök igen.');
+    } finally {
+      offerVisibilityLock.current = false;
+      setChangingOfferId(null);
+    }
+  }
+
+  function confirmRemoveOffer(offer) {
+    Alert.alert('Radera erbjudande?', `${offer.title}\n\nTas bort från kundernas lista. Redan skickade notiser finns kvar.`, [
+      { text: 'Avbryt', style: 'cancel' },
+      { text: 'Radera', style: 'destructive', onPress: () => changeOfferVisibility(offer, true) },
     ]);
   }
 
@@ -1667,6 +1755,11 @@ function updateFullMenu(category, newItems) {
         </View>
 
 
+        <AppButton title="Erbjudanden" onPress={() => {
+          setSection('Erbjudanden');
+          setCustomerOffersRevision(value => value + 1);
+        }} />
+
 <View style={{
   flexDirection: 'row',
   flexWrap: 'wrap',
@@ -1713,6 +1806,27 @@ function updateFullMenu(category, newItems) {
     </TouchableOpacity>
   ))}
 </View>
+
+        {section === 'Erbjudanden' && (
+          <View>
+            <Text style={styles.heading}>Erbjudanden</Text>
+            <Text style={styles.muted}>Här kan du läsa erbjudanden från Husman. Se giltighetstid och villkor i varje erbjudande.</Text>
+            <AppButton title={customerOffersLoading ? 'Hämtar...' : 'Uppdatera erbjudanden'}
+              outline disabled={customerOffersLoading}
+              onPress={() => setCustomerOffersRevision(value => value + 1)} />
+            {!!customerOffersError && <Text style={styles.orderDetail}>{customerOffersError}</Text>}
+            {!customerOffersLoading && !customerOffersError && customerOffers.length === 0 && (
+              <Text style={styles.empty}>Inga erbjudanden publicerade ännu.</Text>
+            )}
+            {customerOffers.map(offer => (
+              <View key={offer.id} style={[styles.orderCard, { marginTop: 14, padding: 18 }]}>
+                <Text style={[styles.foodOrderTitle, { fontWeight: '800', color: '#102b49' }]}>{offer.title}</Text>
+                <Text style={styles.muted}>Publicerat {new Date(offer.created_at).toLocaleDateString('sv-SE')}</Text>
+                <Text style={[styles.orderDetail, { marginTop: 12 }]}>{offer.body}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
         {section === 'Lunch' && (
           <>
@@ -2113,7 +2227,7 @@ onAdd={() => {
                     onPress={() => setEditLunchPrices(false)} />}
                 </View>
               )}
-              <AppButton title="Skicka erbjudande" outline onPress={() => {
+              <AppButton title="Hantera erbjudanden" outline onPress={() => {
                 setShowOfferEditor(value => !value);
                 if (!showOfferEditor) refreshOfferAudience();
               }} />
@@ -2134,6 +2248,25 @@ onAdd={() => {
                     placeholder="Skriv ditt erbjudande" />
                   <AppButton title={offerSending ? 'Skickar...' : 'Granska och skicka erbjudande'}
                     disabled={offerSending} onPress={confirmOffer} />
+                  <Text style={styles.adminHeading}>Publicerade erbjudanden</Text>
+                  <Text style={styles.muted}>Erbjudanden visas tills du raderar dem. Raderade erbjudanden kan visas igen utan ny notis.</Text>
+                  <AppButton title={ownerOffersLoading ? 'Hämtar...' : 'Uppdatera erbjudanden'}
+                    outline disabled={ownerOffersLoading || changingOfferId !== null}
+                    onPress={() => setOwnerOffersRevision(value => value + 1)} />
+                  {!!ownerOffersError && <Text style={styles.orderDetail}>{ownerOffersError}</Text>}
+                  {!ownerOffersLoading && !ownerOffersError && ownerOffers.length === 0 && (
+                    <Text style={styles.muted}>Inga erbjudanden publicerade ännu.</Text>
+                  )}
+                  {ownerOffers.map(offer => (
+                    <View key={offer.id} style={[styles.orderCard, { marginTop: 14 }]}>
+                      <Text style={styles.orderTitle}>{offer.title}</Text>
+                      <Text style={styles.orderDetail}>{offer.body}</Text>
+                      <Text style={styles.muted}>{offer.hidden_at ? 'Raderat från kundlistan' : 'Syns hos kunder'}</Text>
+                      <AppButton title={changingOfferId === offer.id ? 'Sparar...' : offer.hidden_at ? 'Visa igen' : 'Radera erbjudande'}
+                        outline disabled={changingOfferId !== null || offerSending}
+                        onPress={() => offer.hidden_at ? changeOfferVisibility(offer, false) : confirmRemoveOffer(offer)} />
+                    </View>
+                  ))}
                 </View>
               )}
               <Text

@@ -3,6 +3,8 @@ import {
   Alert,
   AppState,
   Image,
+  Keyboard,
+  KeyboardAvoidingView,
   Linking,
   Platform,
   Pressable,
@@ -194,6 +196,25 @@ function AdminOrderSound({ soundRef, ringing }) {
 }
 
 export default function App() {
+  const messageScrollRef = useRef(null);
+  const messageInputRef = useRef(null);
+  const messageFocused = useRef(false);
+
+  function revealMessageInput() {
+    if (!messageFocused.current || !messageInputRef.current) return;
+    requestAnimationFrame(() => {
+      if (!messageFocused.current || !messageInputRef.current) return;
+      messageScrollRef.current?.scrollResponderScrollNativeHandleToKeyboard(
+        messageInputRef.current, 24, true
+      );
+    });
+  }
+
+  useEffect(() => {
+    const subscription = Keyboard.addListener('keyboardDidShow', revealMessageInput);
+    return () => subscription.remove();
+  }, []);
+
   const orderSound = useRef(null);
   const knownOrderIds = useRef(null);
   const seenOrdersAtLogin = useRef(null);
@@ -1243,7 +1264,13 @@ function updateFullMenu(category, newItems) {
       <SafeAreaView style={styles.page}>
         <StatusBar style="dark" />
 
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
         <ScrollView
+          ref={messageScrollRef}
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={
             styles.content
           }
@@ -1420,6 +1447,12 @@ function updateFullMenu(category, newItems) {
           </Text>
 
           <TextInput
+            ref={messageInputRef}
+            onFocus={() => {
+              messageFocused.current = true;
+              revealMessageInput();
+            }}
+            onBlur={() => { messageFocused.current = false; }}
             style={styles.messageInput}
             multiline
             value={message}
@@ -1448,6 +1481,7 @@ function updateFullMenu(category, newItems) {
             }
           />
         </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     );
   }
@@ -1456,7 +1490,13 @@ function updateFullMenu(category, newItems) {
     <SafeAreaView style={styles.page}>
       <StatusBar style="dark" />
 
-      <ScrollView
+      <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+        <ScrollView
+          ref={messageScrollRef}
+          keyboardShouldPersistTaps="handled"
         contentContainerStyle={
           styles.content
         }
@@ -1698,7 +1738,13 @@ onAdd={() => {
 
 <Text style={styles.label}>Meddelande</Text>
 <TextInput
-  style={styles.messageInput}
+  ref={messageInputRef}
+            onFocus={() => {
+              messageFocused.current = true;
+              revealMessageInput();
+            }}
+            onBlur={() => { messageFocused.current = false; }}
+            style={styles.messageInput}
   multiline
   value={bookingMessage}
   onChangeText={setBookingMessage}
@@ -1799,7 +1845,13 @@ onAdd={() => {
             </Text>
 
             <TextInput
-              style={styles.messageInput}
+              ref={messageInputRef}
+            onFocus={() => {
+              messageFocused.current = true;
+              revealMessageInput();
+            }}
+            onBlur={() => { messageFocused.current = false; }}
+            style={styles.messageInput}
               multiline
               value={bookingMessage}
               onChangeText={
@@ -2275,6 +2327,7 @@ onAdd={() => {
         </View>
         )}
       </ScrollView>
+        </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

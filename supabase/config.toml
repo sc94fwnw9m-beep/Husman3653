@@ -1,0 +1,4 @@
+[functions.offer-notifications]
+# Subscription requests are anonymous. Admin actions validate the session and
+# is_restaurant_admin inside the handler before reading an audience or sending.
+verify_jwt = false

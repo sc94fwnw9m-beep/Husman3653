@@ -238,18 +238,7 @@ export default function App() {
   const [customerOffersRevision, setCustomerOffersRevision] = useState(0);
   const offerListPosition = useRef(0);
   const offerListScrollPending = useRef(false);
-  function openCustomerOffers() {
-    setShowCart(false);
-    setCustomerOffersRevision(value => value + 1);
-    if (section === 'Erbjudanden') {
-      messageScrollRef.current?.scrollTo({ y: offerListPosition.current, animated: true });
-    } else {
-      offerListScrollPending.current = true;
-      setSection('Erbjudanden');
-    }
-  }
   useEffect(() => {
-    if (section !== 'Erbjudanden') return;
     let active = true;
     let requestVersion = 0;
     async function refresh() {
@@ -277,7 +266,7 @@ export default function App() {
       if (notification.request.content.data?.type === 'offer') refresh();
     });
     return () => { active = false; clearInterval(timer); foreground.remove(); received.remove(); };
-  }, [section, customerOffersRevision]);
+  }, [customerOffersRevision]);
   const [offerPreferenceBusy, setOfferPreferenceBusy] = useState(false);
   const offerPreferenceLock = useRef(false);
   const offerPreferenceRevision = useRef(0);
@@ -471,7 +460,7 @@ const [fullMenu, setFullMenu] = useState(MENU);
       } else if (response?.notification.request.content.data?.type === 'offer') {
         setShowCart(false);
         offerListScrollPending.current = true;
-        setSection('Erbjudanden');
+        setSection('Lunch');
         setCustomerOffersRevision(value => value + 1);
         messageScrollRef.current?.scrollTo({ y: offerListPosition.current, animated: true });
       }
@@ -1769,7 +1758,7 @@ function updateFullMenu(category, newItems) {
         </View>
 
 
-        <AppButton title="Erbjudanden" onPress={openCustomerOffers} />
+
 
 <View style={{
   flexDirection: 'row',
@@ -1817,33 +1806,6 @@ function updateFullMenu(category, newItems) {
     </TouchableOpacity>
   ))}
 </View>
-
-        {section === 'Erbjudanden' && (
-          <View onLayout={event => {
-            offerListPosition.current = event.nativeEvent.layout.y;
-            if (offerListScrollPending.current) {
-              offerListScrollPending.current = false;
-              messageScrollRef.current?.scrollTo({ y: offerListPosition.current, animated: true });
-            }
-          }}>
-            <Text style={styles.heading}>Erbjudanden</Text>
-            <Text style={styles.muted}>Här kan du läsa erbjudanden från Husman. Se giltighetstid och villkor i varje erbjudande.</Text>
-            <AppButton title={customerOffersLoading ? 'Hämtar...' : 'Uppdatera erbjudanden'}
-              outline disabled={customerOffersLoading}
-              onPress={() => setCustomerOffersRevision(value => value + 1)} />
-            {!!customerOffersError && <Text style={styles.orderDetail}>{customerOffersError}</Text>}
-            {!customerOffersLoading && !customerOffersError && customerOffers.length === 0 && (
-              <Text style={styles.empty}>Inga erbjudanden publicerade ännu.</Text>
-            )}
-            {customerOffers.map(offer => (
-              <View key={offer.id} style={[styles.orderCard, { marginTop: 14, padding: 18 }]}>
-                <Text style={[styles.foodOrderTitle, { fontWeight: '800', color: '#102b49' }]}>{offer.title}</Text>
-                <Text style={styles.muted}>Publicerat {new Date(offer.created_at).toLocaleDateString('sv-SE')}</Text>
-                <Text style={[styles.orderDetail, { marginTop: 12 }]}>{offer.body}</Text>
-              </View>
-            ))}
-          </View>
-        )}
 
         {section === 'Lunch' && (
           <>
@@ -2135,9 +2097,32 @@ onAdd={() => {
         )}
 
         {!admin && (
-          <View style={styles.info}>
+          <View style={styles.info} onLayout={event => {
+            offerListPosition.current = event.nativeEvent.layout.y;
+            if (offerListScrollPending.current) {
+              offerListScrollPending.current = false;
+              messageScrollRef.current?.scrollTo({ y: offerListPosition.current, animated: true });
+            }
+          }}>
             <Text style={styles.label}>Erbjudanden från Husman</Text>
-            <AppButton title="Läs erbjudanden" onPress={openCustomerOffers} />
+            {customerOffersLoading && customerOffers.length === 0 && (
+              <Text style={styles.muted}>Hämtar erbjudanden...</Text>
+            )}
+            {!!customerOffersError && (<>
+              <Text style={styles.orderDetail}>{customerOffersError}</Text>
+              <AppButton title="Försök igen" outline
+                onPress={() => setCustomerOffersRevision(value => value + 1)} />
+            </>)}
+            {!customerOffersLoading && !customerOffersError && customerOffers.length === 0 && (
+              <Text style={styles.muted}>Inga aktuella erbjudanden.</Text>
+            )}
+            {customerOffers.map(offer => (
+              <View key={offer.id} style={[styles.orderCard, { marginTop: 14, padding: 18 }]}>
+                <Text style={[styles.foodOrderTitle, { fontWeight: '800', color: '#102b49' }]}>{offer.title}</Text>
+                <Text style={styles.muted}>Publicerat {new Date(offer.created_at).toLocaleDateString('sv-SE')}</Text>
+                <Text style={[styles.orderDetail, { marginTop: 12 }]}>{offer.body}</Text>
+              </View>
+            ))}
             <Text style={styles.muted}>
               Få erbjudanden via appnotiser. Det är frivilligt och du kan stänga av dem här när du vill.
               {offerEnabled === true ? ' Du har tackat ja.' : ''}

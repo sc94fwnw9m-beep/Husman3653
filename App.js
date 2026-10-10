@@ -158,6 +158,37 @@ const formatDate = (date) => {
 };
 const formatTime = (date) => date.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
 
+function restaurantDate(now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(now);
+  const value = type => parts.find(part => part.type === type).value;
+  return `${value('year')}-${value('month')}-${value('day')}`;
+}
+
+function nextLunchDate(lunchDay, now = new Date()) {
+  const weekday = ['Söndag', 'Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag'].indexOf(lunchDay);
+  if (weekday < 1 || weekday > 5) return '';
+  const date = new Date(`${restaurantDate(now)}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + (weekday - date.getUTCDay() + 7) % 7);
+  return date.toISOString().slice(0, 10);
+}
+
+function lunchReservationError(items, pickupDate, now = new Date()) {
+  const lunches = items.filter(item => item.category === 'Lunch');
+  for (const item of lunches) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(item.lunchDate || '') || item.lunchDate < restaurantDate(now)) {
+      return 'Lunchdatumet har passerat. Ta bort lunchen ur kundkorgen och välj lunchdag igen.';
+    }
+    const date = new Date(`${item.lunchDate}T12:00:00Z`);
+    if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== item.lunchDate ||
+        nextLunchDate(item.lunchDay, date) !== item.lunchDate || item.lunchDate !== pickupDate) {
+      return 'Lunchrätterna måste tillhöra samma dag och datum. Välj lunchdag igen.';
+    }
+  }
+  return '';
+}
+
 function AdminOrderSound({ soundRef, ringing }) {
   const { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } = require('expo-audio');
   const player = useAudioPlayer(require('./assets/new-order.wav'));
@@ -370,6 +401,17 @@ const [fullMenu, setFullMenu] = useState(MENU);
   // Kundens beställning
   const [orderDate, setOrderDate] =
     useState('');
+  const cartLunchDate = cart.find(item => item.category === 'Lunch')?.lunchDate || '';
+  const previousLunchDate = useRef('');
+  useEffect(() => {
+    if (cartLunchDate) {
+      setOrderDate(cartLunchDate);
+      setShowOrderDatePicker(false);
+    } else if (previousLunchDate.current) {
+      setOrderDate('');
+    }
+    previousLunchDate.current = cartLunchDate;
+  }, [cartLunchDate]);
 
   const [orderTime, setOrderTime] =
     useState('');
@@ -725,18 +767,26 @@ async function loadPublishedMenu() {
   setOrderType(name);
  }
 
- function addToCart(name, basePrice, category) {
+ function addToCart(name, basePrice, category, lunchDay = null) {
   if (!menuAvailable) {
     Alert.alert('Meny', 'Vänta tills den aktuella menyn har hämtats.');
     return;
   }
+  const lunchDate = category === 'Lunch' ? nextLunchDate(lunchDay) : null;
+  if (category === 'Lunch' && !lunchDate) return;
+  if (lunchDate && cart.some(item => item.category === 'Lunch' && item.lunchDate !== lunchDate)) {
+    Alert.alert('Lunchbeställning', 'Beställ en lunchdag åt gången. Slutför beställningen eller ta bort lunchrätterna i kundkorgen innan du väljer en annan dag.');
+    return;
+  }
   const price = mealPrice(basePrice, category);
   setCart((old) => {
+    if (lunchDate && old.some(item => item.category === 'Lunch' && item.lunchDate !== lunchDate)) return old;
     const found = old.find(
       (item) =>
         item.name === name &&
         Number(item.basePrice ?? item.price) === Number(basePrice) &&
-        item.category === category
+        item.category === category &&
+        (category !== 'Lunch' || item.lunchDate === lunchDate)
     );
 
     if (found) {
@@ -756,6 +806,7 @@ async function loadPublishedMenu() {
         price,
         basePrice: Number(basePrice),
         category,
+        ...(category === 'Lunch' ? { lunchDay, lunchDate } : {}),
         qty: 1,
         note: '',
       },
@@ -809,6 +860,12 @@ async function loadPublishedMenu() {
         'Beställning',
         'Fyll i datum och tid när maten önskas.'
       );
+      return;
+    }
+
+    const lunchError = lunchReservationError(cart, orderDate.trim());
+    if (lunchError) {
+      Alert.alert('Lunchbeställning', lunchError);
       return;
     }
 
@@ -1526,6 +1583,9 @@ function updateFullMenu(category, newItems) {
                     {item.price} kr ×{' '}
                     {item.qty}
                   </Text>
+                  {item.category === 'Lunch' && (
+                    <Text style={styles.muted}>{item.lunchDay} {item.lunchDate}</Text>
+                  )}
                 </View>
 
                 <View style={styles.qty}>
@@ -1629,12 +1689,16 @@ function updateFullMenu(category, newItems) {
             Datum 📅
           </Text>
 
-          <TouchableOpacity style={styles.pickerButton} onPress={() => setShowOrderDatePicker(true)}>
+          <TouchableOpacity style={styles.pickerButton} disabled={!!cartLunchDate}
+            onPress={() => setShowOrderDatePicker(true)}>
             <Text style={orderDate ? styles.pickerValue : styles.pickerPlaceholder}>
               {orderDate || 'Välj datum'}
             </Text>
           </TouchableOpacity>
-          {showOrderDatePicker && (
+          {!!cartLunchDate && (
+            <Text style={styles.muted}>Datumet är låst till vald lunchdag: {cart.find(item => item.category === 'Lunch')?.lunchDay}.</Text>
+          )}
+          {showOrderDatePicker && !cartLunchDate && (
             <DateTimePicker
               value={orderDate ? new Date(`${orderDate}T12:00:00`) : new Date()}
               mode="date"
@@ -1812,6 +1876,7 @@ function updateFullMenu(category, newItems) {
             <Text style={styles.heading}>
               Veckans lunchmeny
             </Text>
+            <Text style={styles.muted}>Välj lunchdag för att reservera maten. Datumet blir automatiskt närmaste valda vardag.</Text>
 
             <View style={styles.days}>
               {Object.keys(
@@ -1847,20 +1912,7 @@ day === item && styles.dayActive,
                   number={index + 1}
                   name={name}
                   price={lunchPrice}
-onAdd={() => {
-  const days = ['Söndag', 'Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag'];
-  const today = days[new Date().getDay()];
-
-  if (day !== today || !['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag'].includes(today)) {
-    Alert.alert(
-      'Veckans meny',
-      'Du kan titta på andra dagars lunch, men bara beställa dagens lunch.'
-    );
-    return;
-  }
-
-  addToCart(name, 139, 'Lunch');
-}}
+                  onAdd={() => addToCart(name, 139, 'Lunch', day)}
                 />
               )
             )}

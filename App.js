@@ -1017,10 +1017,11 @@ async function loadPublishedMenu() {
         p_id: offer.id, p_hidden: hidden,
       });
       if (error || data !== true) throw error || new Error('Erbjudandet hittades inte.');
+      if (hidden) setOwnerOffers(current => current.filter(item => item.id !== offer.id));
       setOwnerOffersRevision(value => value + 1);
       setCustomerOffersRevision(value => value + 1);
       Alert.alert('Erbjudanden', hidden
-        ? 'Erbjudandet är borttaget från kundlistan. Redan skickade notiser finns kvar på mobilen. Du kan återställa erbjudandet med Visa igen.'
+        ? 'Erbjudandet är borttaget från kundlistan och din adminlista. Redan skickade notiser finns kvar på mobilen.'
         : 'Erbjudandet visas igen i kundlistan. Ingen ny notis skickas.');
     } catch {
       Alert.alert('Erbjudanden', 'Ändringen kunde inte sparas. Kontrollera internet och försök igen.');
@@ -1031,7 +1032,7 @@ async function loadPublishedMenu() {
   }
 
   function confirmRemoveOffer(offer) {
-    Alert.alert('Radera erbjudande?', `${offer.title}\n\nTas bort från kundernas lista. Redan skickade notiser finns kvar.`, [
+    Alert.alert('Radera erbjudande?', `${offer.title}\n\nTas bort från kundernas lista och din adminlista. Redan skickade notiser finns kvar.`, [
       { text: 'Avbryt', style: 'cancel' },
       { text: 'Radera', style: 'destructive', onPress: () => changeOfferVisibility(offer, true) },
     ]);
@@ -2249,22 +2250,22 @@ onAdd={() => {
                   <AppButton title={offerSending ? 'Skickar...' : 'Granska och skicka erbjudande'}
                     disabled={offerSending} onPress={confirmOffer} />
                   <Text style={styles.adminHeading}>Publicerade erbjudanden</Text>
-                  <Text style={styles.muted}>Erbjudanden visas tills du raderar dem. Raderade erbjudanden kan visas igen utan ny notis.</Text>
+                  <Text style={styles.muted}>Erbjudanden visas tills du raderar dem. Då försvinner de från kundernas lista och din adminlista.</Text>
                   <AppButton title={ownerOffersLoading ? 'Hämtar...' : 'Uppdatera erbjudanden'}
                     outline disabled={ownerOffersLoading || changingOfferId !== null}
                     onPress={() => setOwnerOffersRevision(value => value + 1)} />
                   {!!ownerOffersError && <Text style={styles.orderDetail}>{ownerOffersError}</Text>}
-                  {!ownerOffersLoading && !ownerOffersError && ownerOffers.length === 0 && (
-                    <Text style={styles.muted}>Inga erbjudanden publicerade ännu.</Text>
+                  {!ownerOffersLoading && !ownerOffersError && !ownerOffers.some(offer => !offer.hidden_at) && (
+                    <Text style={styles.muted}>Inga erbjudanden att visa.</Text>
                   )}
-                  {ownerOffers.map(offer => (
+                  {ownerOffers.filter(offer => !offer.hidden_at).map(offer => (
                     <View key={offer.id} style={[styles.orderCard, { marginTop: 14 }]}>
                       <Text style={styles.orderTitle}>{offer.title}</Text>
                       <Text style={styles.orderDetail}>{offer.body}</Text>
-                      <Text style={styles.muted}>{offer.hidden_at ? 'Raderat från kundlistan' : 'Syns hos kunder'}</Text>
-                      <AppButton title={changingOfferId === offer.id ? 'Sparar...' : offer.hidden_at ? 'Visa igen' : 'Radera erbjudande'}
+                      <Text style={styles.muted}>Syns hos kunder</Text>
+                      <AppButton title={changingOfferId === offer.id ? 'Sparar...' : 'Radera erbjudande'}
                         outline disabled={changingOfferId !== null || offerSending}
-                        onPress={() => offer.hidden_at ? changeOfferVisibility(offer, false) : confirmRemoveOffer(offer)} />
+                        onPress={() => confirmRemoveOffer(offer)} />
                     </View>
                   ))}
                 </View>

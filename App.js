@@ -236,6 +236,7 @@ export default function App() {
   const offerPreferenceLock = useRef(false);
   const offerPreferenceRevision = useRef(0);
   const [showOfferEditor, setShowOfferEditor] = useState(false);
+  const [showAdminSettings, setShowAdminSettings] = useState(false);
   const [offerTitle, setOfferTitle] = useState('Erbjudande från Husman');
   const [offerBody, setOfferBody] = useState('');
   const [offerAudience, setOfferAudience] = useState(null);
@@ -986,6 +987,9 @@ async function loadPublishedMenu() {
       seenOrdersAtLogin.current = null;
       seenBookingsAtLogin.current = null;
       orderSound.current?.pause();
+      setShowAdminSettings(false);
+      setShowCart(false);
+      messageScrollRef.current?.scrollTo({ y: 0, animated: false });
       setAdmin(true);
       // Remove only owner-order notices; customer meal-ready notices remain.
       Notifications.getPresentedNotificationsAsync().then(notifications =>
@@ -1006,6 +1010,7 @@ async function logout() {
   seenBookingsAtLogin.current = null;
   setOwnerPushStatus('');
   setShowOfferEditor(false);
+  setShowAdminSettings(false);
   setOfferAudience(null);
   setOfferBody('');
   offerCampaignId.current = null;
@@ -1638,6 +1643,7 @@ function updateFullMenu(category, newItems) {
             || bookings.some(booking => booking.admin_seen !== true
               && seenBookingsAtLogin.current !== null && !seenBookingsAtLogin.current.has(String(booking.id)))} />}
 
+        {!admin && (<>
         <View style={styles.hero}>
           <Image source={{ uri: FOOD_IMAGES.Lunch }} style={styles.heroImage} />
           <View style={styles.heroOverlay}>
@@ -2021,9 +2027,10 @@ onAdd={() => {
             setShowCart(true)
           }
         />
+        </>)}
 
         {(showAdminLogin || admin) && (
-        <View style={styles.adminBox}>
+        <View style={[styles.adminBox, admin && styles.adminDashboard]}>
           <Text style={styles.adminTitle}>
             Restaurang / Admin
           </Text>
@@ -2064,39 +2071,22 @@ onAdd={() => {
               <Text style={styles.success}>
                 ✓ Inloggad som admin
               </Text>
+              <View style={styles.orderSummary}>
+                <Text style={styles.orderSummaryTitle}>Matbeställningar</Text>
+                <Text style={styles.orderSummaryCount}>{orders.filter(order => (order.status || 'Ny') === 'Ny').length} nya</Text>
+                <Text style={styles.orderDetail}>Beställningarna visas nedan. Acceptera när du har sett dem.</Text>
+              </View>
+              <AppButton title={showAdminSettings ? 'Stäng inställningar' : 'Inställningar • Meny, priser och erbjudanden'}
+                outline onPress={() => {
+                  setShowAdminSettings(value => !value);
+                  messageScrollRef.current?.scrollTo({ y: 0, animated: true });
+                }} />
 
-              <AppButton title="Skicka erbjudande" outline onPress={() => {
-                setShowOfferEditor(value => !value);
-                if (!showOfferEditor) refreshOfferAudience();
-              }} />
-              {showOfferEditor && (
-                <View style={styles.orderCard}>
-                  <Text style={styles.adminHeading}>Erbjudande via appnotis</Text>
-                  <Text style={styles.muted}>
-                    {offerAudience === null ? 'Hämta antalet mottagare.' : `${offerAudience} kunder har tackat ja.`}
-                  </Text>
-                  <AppButton title="Uppdatera antal mottagare" outline onPress={refreshOfferAudience} />
-                  <Text style={styles.label}>Rubrik</Text>
-                  <TextInput style={styles.field} value={offerTitle} maxLength={80} editable={!offerSending}
-                    onChangeText={text => { setOfferTitle(text); offerCampaignId.current = null; }}
-                    placeholder="Rubrik för erbjudandet" />
-                  <Text style={styles.label}>Erbjudande</Text>
-                  <TextInput style={styles.messageInput} value={offerBody} maxLength={500} multiline
-                    editable={!offerSending} onChangeText={text => { setOfferBody(text); offerCampaignId.current = null; }}
-                    placeholder="Skriv ditt erbjudande" />
-                  <AppButton title={offerSending ? 'Skickar...' : 'Granska och skicka erbjudande'}
-                    disabled={offerSending} onPress={confirmOffer} />
-                </View>
-              )}
 
-              <AppButton
-                title="Uppdatera beställningar"
-                onPress={() => {
-                  loadOrders();
-                  loadBookings();
-                }}
-              />
-
+              {showAdminSettings && (
+                <View style={styles.settingsBox}>
+                  <Text style={styles.adminTitle}>Inställningar</Text>
+                  <Text style={styles.muted}>Ändra meny, lägg till maträtter, ändra priser och hantera erbjudanden.</Text>
               <AppButton title="Testa orderljud" outline onPress={testOrderSound} />
               {!!ownerPushStatus && <Text style={styles.muted}>{ownerPushStatus}</Text>}
               <AppButton title="Testa ägarnotis" outline onPress={testOwnerNotification} />
@@ -2123,158 +2113,29 @@ onAdd={() => {
                     onPress={() => setEditLunchPrices(false)} />}
                 </View>
               )}
-
-              <Text
-                style={
-                  styles.adminHeading
-                }
-              >
-                Inkommande beställningar
-              </Text>
-
-              {orders.length === 0 && (
-                <Text
-                  style={styles.muted}
-                >
-                  Inga beställningar att
-                  visa.
-                </Text>
-              )}
-
-              {orders.map((order) => (
-                <View
-                  key={order.id}
-                  style={styles.orderCard}
-                >
-                  <Text
-                    style={
-                      styles.orderTitle
-                    }
-                  >
-                    Beställning #
-                    {order.id}
+              <AppButton title="Skicka erbjudande" outline onPress={() => {
+                setShowOfferEditor(value => !value);
+                if (!showOfferEditor) refreshOfferAudience();
+              }} />
+              {showOfferEditor && (
+                <View style={styles.orderCard}>
+                  <Text style={styles.adminHeading}>Erbjudande via appnotis</Text>
+                  <Text style={styles.muted}>
+                    {offerAudience === null ? 'Hämta antalet mottagare.' : `${offerAudience} kunder har tackat ja.`}
                   </Text>
-
-                  <Text
-                    style={styles.muted}
-                  >
-                    Status:{' '}
-                    {order.status ||
-                      'Ny'}
-                  </Text>
-
-                  {!!order.pickup_date && (
-                    <Text>
-                      Datum:{' '}
-                      {order.pickup_date}
-                    </Text>
-                  )}
-
-                  {!!order.pickup_time && (
-                    <Text>
-                      Tid:{' '}
-                      {order.pickup_time}
-                    </Text>
-                  )}
-
-                  {!!order.order_type && (
-                    <Text>
-                      Typ:{' '}
-                      {order.order_type}
-                    </Text>
-                  )}
-
-                  {Array.isArray(
-                    order.items
-                  ) &&
-                    order.items.map(
-                      (item, index) => (
-                        <Text
-                          key={`${order.id}-${index}`}
-                        >
-                          • {item.qty} ×{' '}
-                          {item.name}
-                          {!!item.note?.trim() && ` — ${item.note.trim()}`}
-                        </Text>
-                      )
-                    )}
-
-                  {!!order.message && (
-                    <Text
-                      style={
-                        styles.orderMessage
-                      }
-                    >
-                      Meddelande:{' '}
-                      {order.message}
-                    </Text>
-                  )}
-
-                  <Text
-                    style={
-                      styles.orderTotal
-                    }
-                  >
-                    Totalt:{' '}
-                    {order.total || 0} kr
-                  </Text>
-
-                  {(order.status || 'Ny') === 'Ny' && (
-                    <AppButton title="Acceptera beställning"
-                      onPress={() => acceptOrder(order)} />
-                  )}
-                  {order.status !==
-                    'Maten färdig' && (
-                    <AppButton
-                      title="Maten färdig"
-                      onPress={() =>
-                        foodReady(order)
-                      }
-                    />
-                  )}
-                  {order.status === 'Maten färdig' && (
-                    <AppButton title="Skicka SMS • Maten färdig" outline
-                      onPress={() => openCustomerSms(order.phone, readyMessage(order))} />
-                  )}
-                  {order.status === 'Maten färdig' && (
-                    <AppButton
-                      title="Radera beställning"
-                      outline
-                      onPress={() => confirmDeleteOrder(order)}
-                    />
-                  )}
+                  <AppButton title="Uppdatera antal mottagare" outline onPress={refreshOfferAudience} />
+                  <Text style={styles.label}>Rubrik</Text>
+                  <TextInput style={styles.field} value={offerTitle} maxLength={80} editable={!offerSending}
+                    onChangeText={text => { setOfferTitle(text); offerCampaignId.current = null; }}
+                    placeholder="Rubrik för erbjudandet" />
+                  <Text style={styles.label}>Erbjudande</Text>
+                  <TextInput style={styles.messageInput} value={offerBody} maxLength={500} multiline
+                    editable={!offerSending} onChangeText={text => { setOfferBody(text); offerCampaignId.current = null; }}
+                    placeholder="Skriv ditt erbjudande" />
+                  <AppButton title={offerSending ? 'Skickar...' : 'Granska och skicka erbjudande'}
+                    disabled={offerSending} onPress={confirmOffer} />
                 </View>
-              ))}
-
-              <Text style={styles.adminHeading}>Bordsbokningar</Text>
-
-              {bookings.length === 0 && (
-                <Text style={styles.muted}>Inga bokningar att visa.</Text>
               )}
-
-              {bookings.map((booking) => (
-                <View key={booking.id} style={styles.orderCard}>
-                  <Text style={styles.orderTitle}>
-                    {booking.booking_date} kl. {booking.booking_time}
-                  </Text>
-                  <Text>{booking.guests || 2} personer</Text>
-                  {booking.admin_seen !== true ? (
-                    <AppButton title="Bokning sedd • Stoppa ljud"
-                      onPress={() => acknowledgeBooking(booking)} />
-                  ) : <Text style={styles.success}>✓ Bokningen är sedd</Text>}
-
-                  <AppButton
-                    title={String(booking.message || '').includes('Catering och festlokal') ? 'Återkom med pris • SMS' : 'Bekräfta bord • SMS'}
-                    onPress={() => bookingReply(booking)}
-                  />
-                  <AppButton title="Radera bokning" outline
-                    onPress={() => confirmDeleteBooking(booking)} />
-                  {!!booking.message && (
-                    <Text style={styles.orderMessage}>{booking.message}</Text>
-                  )}
-                </View>
-              ))}
-
               <Text
                 style={
                   styles.adminHeading
@@ -2484,7 +2345,181 @@ onAdd={() => {
                   saveMenuChanges
                      }
 />
-                
+                                  <AppButton title="Stäng inställningar" outline onPress={() => {
+                    setShowAdminSettings(false);
+                    messageScrollRef.current?.scrollTo({ y: 0, animated: true });
+                  }} />
+                </View>
+              )}
+              {!showAdminSettings && (<>
+              <AppButton
+                title="Uppdatera beställningar"
+                onPress={() => {
+                  loadOrders();
+                  loadBookings();
+                }}
+              />
+
+
+              <Text
+                style={
+                  styles.adminHeading
+                }
+              >
+                Inkommande beställningar
+              </Text>
+
+              {orders.length === 0 && (
+                <Text
+                  style={styles.muted}
+                >
+                  Inga beställningar att
+                  visa.
+                </Text>
+              )}
+
+              {[...orders].sort((a, b) => {
+                const rank = order => (order.status || 'Ny') === 'Ny' ? 0 : order.status === 'Maten färdig' ? 2 : 1;
+                return rank(a) - rank(b);
+              }).map((order) => (
+                <View
+                  key={order.id}
+                  style={[styles.orderCard, styles.foodOrderCard, (order.status || 'Ny') === 'Ny' && styles.newFoodOrderCard]}
+                >
+                  <Text
+                    style={
+                      [styles.orderTitle, styles.foodOrderTitle]
+                    }
+                  >
+                    Beställning #
+                    {order.id}
+                  </Text>
+
+                  <Text
+                    style={styles.orderStatus}
+                  >
+                    Status:{' '}
+                    {order.status ||
+                      'Ny'}
+                  </Text>
+
+                  {!!order.customer_name && <Text style={styles.orderDetail}>{order.customer_name}</Text>}
+                  {!!order.phone && <Text style={styles.orderDetail}>Telefon: {order.phone}</Text>}
+                  {!!order.pickup_date && (
+                    <Text style={styles.orderDetail}>
+                      Datum:{' '}
+                      {order.pickup_date}
+                    </Text>
+                  )}
+
+                  {!!order.pickup_time && (
+                    <Text style={styles.orderDetail}>
+                      Tid:{' '}
+                      {order.pickup_time}
+                    </Text>
+                  )}
+
+                  {!!order.order_type && (
+                    <Text style={styles.orderDetail}>
+                      Typ:{' '}
+                      {order.order_type}
+                    </Text>
+                  )}
+
+                  {Array.isArray(
+                    order.items
+                  ) &&
+                    order.items.map(
+                      (item, index) => (
+                        <Text
+                          key={`${order.id}-${index}`}
+                          style={styles.orderDish}
+                        >
+                          • {item.qty} ×{' '}
+                          {item.name}
+                          {!!item.note?.trim() && ` — ${item.note.trim()}`}
+                        </Text>
+                      )
+                    )}
+
+                  {!!order.message && (
+                    <Text
+                      style={
+                        [styles.orderMessage, styles.orderDetail]
+                      }
+                    >
+                      Meddelande:{' '}
+                      {order.message}
+                    </Text>
+                  )}
+
+                  <Text
+                    style={
+                      [styles.orderTotal, styles.foodOrderTotal]
+                    }
+                  >
+                    Totalt:{' '}
+                    {order.total || 0} kr
+                  </Text>
+
+                  {(order.status || 'Ny') === 'Ny' && (
+                    <AppButton title="Acceptera beställning"
+                      onPress={() => acceptOrder(order)} />
+                  )}
+                  {order.status !==
+                    'Maten färdig' && (
+                    <AppButton
+                      title="Maten färdig"
+                      onPress={() =>
+                        foodReady(order)
+                      }
+                    />
+                  )}
+                  {order.status === 'Maten färdig' && (
+                    <AppButton title="Skicka SMS • Maten färdig" outline
+                      onPress={() => openCustomerSms(order.phone, readyMessage(order))} />
+                  )}
+                  {order.status === 'Maten färdig' && (
+                    <AppButton
+                      title="Radera beställning"
+                      outline
+                      onPress={() => confirmDeleteOrder(order)}
+                    />
+                  )}
+                </View>
+              ))}
+
+              <Text style={styles.adminHeading}>Bordsbokningar</Text>
+
+              {bookings.length === 0 && (
+                <Text style={styles.muted}>Inga bokningar att visa.</Text>
+              )}
+
+              {bookings.map((booking) => (
+                <View key={booking.id} style={styles.orderCard}>
+                  <Text style={styles.orderTitle}>
+                    {booking.booking_date} kl. {booking.booking_time}
+                  </Text>
+                  <Text>{booking.guests || 2} personer</Text>
+                  {booking.admin_seen !== true ? (
+                    <AppButton title="Bokning sedd • Stoppa ljud"
+                      onPress={() => acknowledgeBooking(booking)} />
+                  ) : <Text style={styles.success}>✓ Bokningen är sedd</Text>}
+
+                  <AppButton
+                    title={String(booking.message || '').includes('Catering och festlokal') ? 'Återkom med pris • SMS' : 'Bekräfta bord • SMS'}
+                    onPress={() => bookingReply(booking)}
+                  />
+                  <AppButton title="Radera bokning" outline
+                    onPress={() => confirmDeleteBooking(booking)} />
+                  {!!booking.message && (
+                    <Text style={styles.orderMessage}>{booking.message}</Text>
+                  )}
+                </View>
+              ))}
+
+
+              </>)}
               <AppButton
                 title="Logga ut"
                 outline
@@ -2958,6 +2993,18 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
 
+  adminDashboard: { marginTop: 0, padding: 12 },
+  settingsBox: { padding: 14, marginTop: 20, borderRadius: 16, backgroundColor: '#e5f1ff' },
+  orderSummary: { padding: 18, borderRadius: 16, backgroundColor: '#d9ecff', marginBottom: 8 },
+  orderSummaryTitle: { fontSize: 25, fontWeight: '900', color: '#102b49' },
+  orderSummaryCount: { fontSize: 32, fontWeight: '900', color: BLUE, marginVertical: 6 },
+  foodOrderTitle: { fontSize: 24 },
+  foodOrderTotal: { fontSize: 22 },
+  foodOrderCard: { padding: 20, borderWidth: 2, marginBottom: 18 },
+  newFoodOrderCard: { borderColor: BLUE, backgroundColor: '#eaf5ff' },
+  orderStatus: { fontSize: 20, fontWeight: '900', color: BLUE, marginBottom: 10 },
+  orderDetail: { fontSize: 18, lineHeight: 26, color: '#102b49', marginBottom: 4 },
+  orderDish: { fontSize: 20, lineHeight: 28, fontWeight: '800', color: '#102b49', marginTop: 10 },
   orderCard: {
     backgroundColor: '#ffffff',
     borderWidth: 1,

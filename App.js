@@ -231,10 +231,43 @@ export default function App() {
   const deletingBookingIds = useRef(new Set());
   const [section, setSection] = useState('Lunch');
    const [expoPushToken, setExpoPushToken] = useState('');
+  const [offerEnabled, setOfferEnabled] = useState(null);
+  const [offerPreferenceBusy, setOfferPreferenceBusy] = useState(false);
+  const offerPreferenceLock = useRef(false);
+  const offerPreferenceRevision = useRef(0);
+  const [showOfferEditor, setShowOfferEditor] = useState(false);
+  const [offerTitle, setOfferTitle] = useState('Erbjudande från Husman');
+  const [offerBody, setOfferBody] = useState('');
+  const [offerAudience, setOfferAudience] = useState(null);
+  const [offerSending, setOfferSending] = useState(false);
+  const offerSendLock = useRef(false);
+  const offerCampaignId = useRef(null);
+  useEffect(() => {
+    if (!expoPushToken) return;
+    let active = true;
+    const refresh = async () => {
+      const revision = offerPreferenceRevision.current;
+      const { data, error } = await supabase.functions.invoke('offer-notifications', {
+        body: { action: 'subscription_status', token: expoPushToken },
+      });
+      if (active && revision === offerPreferenceRevision.current && !offerPreferenceLock.current &&
+          !error && typeof data?.enabled === 'boolean') setOfferEnabled(data.enabled);
+    };
+    refresh().catch(() => {});
+    const listener = AppState.addEventListener('change', state => {
+      if (state === 'active') refresh().catch(() => {});
+    });
+    return () => { active = false; listener.remove(); };
+  }, [expoPushToken]);
    useEffect(() => {
   async function registerForPushNotifications() {
     try {
       if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('offers', {
+          name: 'Erbjudanden från Husman',
+          importance: Notifications.AndroidImportance.DEFAULT,
+          sound: 'default',
+        });
         await Notifications.setNotificationChannelAsync('owner-orders', {
           name: 'Nya matbeställningar',
           importance: Notifications.AndroidImportance.MAX,
@@ -822,6 +855,99 @@ async function loadPublishedMenu() {
     setBookingMessage('');
   }
 
+  async function offerRequest(body) {
+    const { data, error } = await supabase.functions.invoke('offer-notifications', { body });
+    if (error) {
+      let message = 'Kunde inte nå erbjudandefunktionen. Försök igen.';
+      try { message = (await error.context.json()).error || message; } catch {}
+      throw new Error(message);
+    }
+    if (data?.error && !data?.campaign) throw new Error(data.error);
+    return data;
+  }
+
+  async function changeOfferPreference(enabled) {
+    if (offerPreferenceLock.current) return;
+    offerPreferenceLock.current = true;
+    offerPreferenceRevision.current += 1;
+    setOfferPreferenceBusy(true);
+    try {
+      if (enabled) {
+        let permission = await Notifications.getPermissionsAsync();
+        if (permission.status !== 'granted') permission = await Notifications.requestPermissionsAsync();
+        if (permission.status !== 'granted') {
+          Alert.alert('Erbjudanden', 'Tillåt notiser i mobilens inställningar för att ta emot erbjudanden.');
+          return;
+        }
+      }
+      const token = expoPushToken || (await Notifications.getExpoPushTokenAsync({
+        projectId: 'd2f4d05f-9222-4f0a-8408-22acea729cc9',
+      })).data;
+      const result = await offerRequest({
+        action: enabled ? 'subscribe' : 'unsubscribe', token, consent_version: 'offers-v1',
+      });
+      setExpoPushToken(token);
+      setOfferEnabled(result.enabled);
+      Alert.alert('Erbjudanden', enabled ? 'Du får nu erbjudanden från Husman via appnotiser. Du kan stänga av dem här när du vill.' : 'Erbjudanden är avstängda.');
+    } catch (error) {
+      Alert.alert('Erbjudanden', error.message || 'Ditt val kunde inte sparas. Försök igen.');
+    } finally {
+      offerPreferenceLock.current = false;
+      setOfferPreferenceBusy(false);
+    }
+  }
+
+  async function refreshOfferAudience() {
+    try {
+      const result = await offerRequest({ action: 'audience' });
+      setOfferAudience(result.count);
+    } catch (error) { Alert.alert('Erbjudanden', error.message); }
+  }
+
+  async function sendOfferConfirmed() {
+    if (offerSendLock.current) return;
+    offerSendLock.current = true;
+    setOfferSending(true);
+    // Preserve the same id after an uncertain response, preventing duplicate sends.
+    if (!offerCampaignId.current) {
+      offerCampaignId.current = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.floor(Math.random() * 16);
+        return (c === 'x' ? r : (r & 3) | 8).toString(16);
+      });
+    }
+    try {
+      const result = await offerRequest({ action: 'send', id: offerCampaignId.current,
+        title: offerTitle.trim(), body: offerBody.trim() });
+      const campaign = result.campaign;
+      if (!campaign) throw new Error('Kunde inte kontrollera utskicket. Tryck igen för att kontrollera samma utskick.');
+      if (campaign.status === 'sending') {
+        Alert.alert('Erbjudanden', 'Utskicket pågår. Tryck igen för att kontrollera status. Det skickas inte dubbelt.');
+        return;
+      }
+      Alert.alert('Erbjudanden', `${campaign.accepted} notiser har tagits emot av notistjänsten.${campaign.failed ? ` ${campaign.failed} kunde inte skickas.` : ''}${campaign.uncertain ? ` Status är osäker för ${campaign.uncertain}.` : ''}${campaign.status === 'partial' ? ' Hela utskicket kunde inte slutföras.' : ''}`);
+      if (campaign.status === 'completed') {
+        setOfferBody('');
+        offerCampaignId.current = null;
+      }
+    } catch (error) {
+      Alert.alert('Erbjudanden', `${error.message}\nTryck igen för att kontrollera samma utskick utan att skicka dubbelt.`);
+    } finally {
+      offerSendLock.current = false;
+      setOfferSending(false);
+    }
+  }
+
+  function confirmOffer() {
+    if (offerSendLock.current) return;
+    if (!offerTitle.trim() || !offerBody.trim()) {
+      Alert.alert('Erbjudanden', 'Skriv en rubrik och ditt erbjudande.');
+      return;
+    }
+    Alert.alert('Skicka erbjudande?', `${offerTitle.trim()}\n\n${offerBody.trim()}\n\nSkickas till kunder som har tackat ja till erbjudanden.`, [
+      { text: 'Avbryt', style: 'cancel' }, { text: 'Skicka', onPress: sendOfferConfirmed },
+    ]);
+  }
+
   async function login() {
     if (ownerLoginInProgress.current) return;
     if (!adminEmail.trim() || !/^\d{4,12}$/.test(ownerCode.trim())) {
@@ -879,6 +1005,10 @@ async function logout() {
   seenOrdersAtLogin.current = null;
   seenBookingsAtLogin.current = null;
   setOwnerPushStatus('');
+  setShowOfferEditor(false);
+  setOfferAudience(null);
+  setOfferBody('');
+  offerCampaignId.current = null;
   // Device registration stays on the server to notify this owner after logout.
   await supabase.auth.signOut();
 
@@ -1867,6 +1997,20 @@ onAdd={() => {
           </>
         )}
 
+        {!admin && (
+          <View style={styles.info}>
+            <Text style={styles.label}>Erbjudanden från Husman</Text>
+            <Text style={styles.muted}>
+              Få erbjudanden via appnotiser. Det är frivilligt och du kan stänga av dem här när du vill.
+              {offerEnabled === true ? ' Du har tackat ja.' : ''}
+            </Text>
+            <AppButton
+              title={offerPreferenceBusy ? 'Sparar...' : offerEnabled === true ? 'Stäng av erbjudanden' : 'Ja, jag vill få erbjudanden'}
+              outline disabled={offerPreferenceBusy}
+              onPress={() => changeOfferPreference(offerEnabled !== true)}
+            />
+          </View>
+        )}
         <AppButton
           title={`Kundkorg (${cart.reduce(
             (sum, item) =>
@@ -1920,6 +2064,30 @@ onAdd={() => {
               <Text style={styles.success}>
                 ✓ Inloggad som admin
               </Text>
+
+              <AppButton title="Skicka erbjudande" outline onPress={() => {
+                setShowOfferEditor(value => !value);
+                if (!showOfferEditor) refreshOfferAudience();
+              }} />
+              {showOfferEditor && (
+                <View style={styles.orderCard}>
+                  <Text style={styles.adminHeading}>Erbjudande via appnotis</Text>
+                  <Text style={styles.muted}>
+                    {offerAudience === null ? 'Hämta antalet mottagare.' : `${offerAudience} kunder har tackat ja.`}
+                  </Text>
+                  <AppButton title="Uppdatera antal mottagare" outline onPress={refreshOfferAudience} />
+                  <Text style={styles.label}>Rubrik</Text>
+                  <TextInput style={styles.field} value={offerTitle} maxLength={80} editable={!offerSending}
+                    onChangeText={text => { setOfferTitle(text); offerCampaignId.current = null; }}
+                    placeholder="Rubrik för erbjudandet" />
+                  <Text style={styles.label}>Erbjudande</Text>
+                  <TextInput style={styles.messageInput} value={offerBody} maxLength={500} multiline
+                    editable={!offerSending} onChangeText={text => { setOfferBody(text); offerCampaignId.current = null; }}
+                    placeholder="Skriv ditt erbjudande" />
+                  <AppButton title={offerSending ? 'Skickar...' : 'Granska och skicka erbjudande'}
+                    disabled={offerSending} onPress={confirmOffer} />
+                </View>
+              )}
 
               <AppButton
                 title="Uppdatera beställningar"
@@ -2384,14 +2552,17 @@ function AppButton({
   title,
   onPress,
   outline,
+  disabled = false,
 }) {
   return (
     <TouchableOpacity
       onPress={onPress}
+      disabled={disabled}
       style={[
         styles.button,
         outline &&
           styles.buttonOutline,
+        disabled && { opacity: 0.5 },
       ]}
     >
       <Text

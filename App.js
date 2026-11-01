@@ -21,6 +21,8 @@ import { createClient } from '@supabase/supabase-js';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { checkOpenDate, closureForDate, closureText } from './closures';
 import { ClosedDaysAdmin, ClosedDaysNotice, useClosedDays } from './ClosedDays';
+import { FrozenMealPicker, FrozenMenuEditor } from './FrozenMeals';
+import { FROZEN_CATEGORY, checkFrozenCart, frozenDishes } from './frozenMeals';
 import * as Notifications from 'expo-notifications';
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -110,11 +112,7 @@ Sallader: [
     ['Kaffe', 25],
   ],
 
-  'Frysta matlådor': [
-    ['1 matlåda', 65],
-    ['5 matlådor', 290],
-    ['10 matlådor', 550],
-  ],
+  'Frysta matlådor': [],
 };
 
 const DEFAULT_ORDER_TYPES = [
@@ -661,7 +659,7 @@ async function loadPublishedMenu() {
   }
 
   setWeeklyLunch(lunch);
-  setFullMenu(full);
+  setFullMenu({ ...full, [FROZEN_CATEGORY]: frozenDishes(full[FROZEN_CATEGORY]).map((name) => [name, 65]) });
   menuSnapshot.current = data || [];
   setMenuAvailable(true);
   menuLoadAlertShown.current = false;
@@ -724,6 +722,27 @@ async function loadPublishedMenu() {
   Alert.alert('Klart', `${section} är uppdaterad för alla kunder.`);
  }
 
+ async function saveFrozenMenu(items) {
+  const error = await publishMenuSection(FROZEN_CATEGORY, '', items);
+  if (error) {
+    Alert.alert('Frysta matlådor', String(error.message || '').includes('Menu changed elsewhere')
+      ? 'Menyn har ändrats på en annan enhet. Dina texter finns kvar här. Hämta den senaste menyn innan du sparar igen.'
+      : 'Menyn kunde inte sparas. Dina texter finns kvar så att du kan försöka igen.');
+    return false;
+  }
+  setFullMenu((old) => ({ ...old, [FROZEN_CATEGORY]: items }));
+  Alert.alert('Sparat', `${items.length} maträtter visas nu under Frysta matlådor. Tomma rader visas inte för kunderna.`);
+  return true;
+ }
+
+ function addFrozenBundle(bundle) {
+  if (!menuAvailable) { Alert.alert('Frysta matlådor', 'Vänta tills den aktuella menyn har hämtats.'); return false; }
+  addToCart(bundle.name, bundle.price, FROZEN_CATEGORY, null, {
+    frozenPack: bundle.frozenPack, frozenItems: bundle.frozenItems,
+  });
+  return true;
+ }
+
  function mealPrice(basePrice, category, type = orderType) {
   const base = Number(basePrice);
   if (['Frukost', 'Frysta matlådor'].includes(category)) return base;
@@ -771,7 +790,7 @@ async function loadPublishedMenu() {
   setOrderType(name);
  }
 
- function addToCart(name, basePrice, category, lunchDay = null) {
+ function addToCart(name, basePrice, category, lunchDay = null, details = {}) {
   if (!menuAvailable) {
     Alert.alert('Meny', 'Vänta tills den aktuella menyn har hämtats.');
     return;
@@ -813,6 +832,7 @@ async function loadPublishedMenu() {
         basePrice: Number(basePrice),
         category,
         ...(category === 'Lunch' ? { lunchDay, lunchDate } : {}),
+        ...(category === FROZEN_CATEGORY ? details : {}),
         qty: 1,
         note: '',
       },
@@ -877,6 +897,8 @@ async function loadPublishedMenu() {
 
     orderSubmitInProgress.current = true;
     try {
+    const frozenError = await checkFrozenCart(supabase, cart);
+    if (frozenError) { Alert.alert('Frysta matlådor', frozenError); return; }
     const availability = await checkOpenDate(supabase, orderDate.trim());
     if (!availability.allowed) {
       Alert.alert('Beställning', availability.message);
@@ -1975,7 +1997,10 @@ day === item && styles.dayActive,
     style={styles.sectionImage}
   />
 )}
-            {fullMenu[section].map(
+            {section === FROZEN_CATEGORY ? (
+              <FrozenMealPicker dishes={fullMenu[FROZEN_CATEGORY]} onAdd={addFrozenBundle}
+                available={menuAvailable} styles={styles} Button={AppButton} />
+            ) : fullMenu[section].map(
               ([name, price]) => (
                 <Food
                   key={name}
@@ -2395,7 +2420,7 @@ day === item && styles.dayActive,
     <Text style={styles.label}>Kategori för ny maträtt</Text>
     <View style={styles.days}>
       {CATEGORIES.filter((category) =>
-        category !== 'Boka bord' && category !== 'Catering & Festlokal'
+        category !== 'Boka bord' && category !== 'Catering & Festlokal' && category !== FROZEN_CATEGORY
       ).map((category) => (
         <TouchableOpacity
           key={category}
@@ -2463,11 +2488,14 @@ day === item && styles.dayActive,
   </>
 )}
 
-{fullMenu[section] && section !== 'Lunch' && (
+{section === FROZEN_CATEGORY && (
+  <FrozenMenuEditor dishes={fullMenu[FROZEN_CATEGORY]} onSave={saveFrozenMenu} styles={styles} Button={AppButton} />
+)}
+{fullMenu[section] && section !== 'Lunch' && section !== FROZEN_CATEGORY && (
   <Text style={styles.adminHeading}>
     Redigerar: {section}
   </Text>
-)} {fullMenu[section] && section !== 'Lunch' &&
+)} {fullMenu[section] && section !== 'Lunch' && section !== FROZEN_CATEGORY &&
   (fullMenu[section] || []).map((food, index) => (
     <View key={`${section}-${index}`}>
       <TextInput
@@ -2492,7 +2520,7 @@ day === item && styles.dayActive,
       />
     </View>
   ))
-}{fullMenu[section] && section !== 'Lunch' && (
+}{fullMenu[section] && section !== 'Lunch' && section !== FROZEN_CATEGORY && (
   <AppButton
     title="Spara ändringar"
     onPress={() => saveFullMenu(section)}

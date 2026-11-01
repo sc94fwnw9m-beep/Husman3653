@@ -6,13 +6,14 @@ const { PGlite } = require('@electric-sql/pglite');
 
 async function run() {
   const helpers = await import('../closures.js');
+  const frozenHelpers = await import('../frozenMeals.js');
   const source = fs.readFileSync('App.js', 'utf8');
   const ast = parse(source, { sourceType: 'module', plugins: ['jsx'] });
   parse(fs.readFileSync('ClosedDays.js', 'utf8'), { sourceType: 'module', plugins: ['jsx'] });
   const app = ast.program.body.find((node) => node.type === 'ExportDefaultDeclaration').declaration;
   function fn(name, context) {
     const node = app.body.body.find((node) => node.type === 'FunctionDeclaration' && node.id.name === name);
-    const scope = { console, ...helpers, ...context };
+    const scope = { console, ...helpers, ...frozenHelpers, ...context };
     vm.createContext(scope);
     vm.runInContext(source.slice(node.start, node.end), scope);
     return scope[name];

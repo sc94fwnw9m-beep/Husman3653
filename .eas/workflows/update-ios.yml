@@ -1,4 +1,4 @@
-name: Publish closed days for iOS and Android
+name: Publish frozen meal menu for iOS and Android
 
 jobs:
   update_ios:
@@ -7,4 +7,4 @@ jobs:
     params:
       platform: all
       channel: production
-      message: 'Stängda dagar och semester i ägarinställningarna'
+      message: 'Frysta matlådor med 20 ägarrader och kundval'

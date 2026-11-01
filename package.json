@@ -10,7 +10,7 @@
     "build:android": "eas build --platform android --profile production",
     "build:ios": "eas build --platform ios --profile production",
     "verify:fixes": "node scripts/verify-fixes.cjs",
-    "verify:closed-days": "node --test tests/closures.test.js && node tests/closed-days-integration.cjs"
+    "verify:closed-days": "node --test scripts/closures.test.js && node scripts/closed-days-integration.cjs"
   },
   "dependencies": {
     "@react-native-community/datetimepicker": "8.4.4",

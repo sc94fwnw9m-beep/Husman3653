@@ -19,6 +19,8 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { createClient } from '@supabase/supabase-js';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { checkOpenDate, closureForDate, closureText } from './closures';
+import { ClosedDaysAdmin, ClosedDaysNotice, useClosedDays } from './ClosedDays';
 import * as Notifications from 'expo-notifications';
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -227,6 +229,8 @@ function AdminOrderSound({ soundRef, ringing }) {
 }
 
 export default function App() {
+  const closedDays = useClosedDays(supabase);
+  const bookingSubmitInProgress = useRef(false);
   const messageScrollRef = useRef(null);
   const messageInputRef = useRef(null);
   const messageFocused = useRef(false);
@@ -774,6 +778,8 @@ async function loadPublishedMenu() {
   }
   const lunchDate = category === 'Lunch' ? nextLunchDate(lunchDay) : null;
   if (category === 'Lunch' && !lunchDate) return;
+  const closure = closureForDate(closedDays.closures, lunchDate);
+  if (closure) { Alert.alert('Stängt', closureText(closure)); return; }
   if (lunchDate && cart.some(item => item.category === 'Lunch' && item.lunchDate !== lunchDate)) {
     Alert.alert('Lunchbeställning', 'Beställ en lunchdag åt gången. Slutför beställningen eller ta bort lunchrätterna i kundkorgen innan du väljer en annan dag.');
     return;
@@ -871,6 +877,11 @@ async function loadPublishedMenu() {
 
     orderSubmitInProgress.current = true;
     try {
+    const availability = await checkOpenDate(supabase, orderDate.trim());
+    if (!availability.allowed) {
+      Alert.alert('Beställning', availability.message);
+      return;
+    }
     const { error } = await supabase
       .from('orders')
       .insert({
@@ -895,7 +906,9 @@ async function loadPublishedMenu() {
 
       Alert.alert(
         'Beställning',
-        'Beställningen kunde inte skickas just nu.'
+        error.message?.includes('RESTAURANT_CLOSED')
+          ? 'Restaurangen är stängd det datumet. Välj ett annat datum.'
+          : 'Beställningen kunde inte skickas just nu.'
       );
 
       return;
@@ -921,6 +934,7 @@ async function loadPublishedMenu() {
   }
 
   async function bookTable(kind = 'table') {
+    if (bookingSubmitInProgress.current) return;
     if (!bookingName.trim() || !bookingPhone.trim()) {
       Alert.alert('Boka bord', 'Fyll i namn och telefonnummer.');
       return;
@@ -937,6 +951,13 @@ async function loadPublishedMenu() {
       return;
     }
 
+    bookingSubmitInProgress.current = true;
+    try {
+    const availability = await checkOpenDate(supabase, bookingDate.trim());
+    if (!availability.allowed) {
+      Alert.alert('Bokning', availability.message);
+      return;
+    }
     const { error } = await supabase
       .from('bookings')
       .insert({
@@ -955,7 +976,9 @@ async function loadPublishedMenu() {
 
       Alert.alert(
         'Boka bord',
-        'Bokningen kunde inte skickas just nu.'
+        error.message?.includes('RESTAURANT_CLOSED')
+          ? 'Restaurangen är stängd det datumet. Välj ett annat datum.'
+          : 'Bokningen kunde inte skickas just nu.'
       );
 
       return;
@@ -972,6 +995,20 @@ async function loadPublishedMenu() {
     setBookingPhone('');
     setBookingGuests('2');
     setBookingMessage('');
+    } catch {
+      Alert.alert('Bokning', 'Bokningen kunde inte bekräftas. Kontrollera med restaurangen innan du skickar igen.');
+    } finally { bookingSubmitInProgress.current = false; }
+  }
+
+  function selectAvailableDate(selected, setter) {
+    const date = formatDate(selected);
+    const closure = closureForDate(closedDays.closures, date);
+    if (closure) {
+      setter('');
+      Alert.alert('Stängt', closureText(closure));
+      return;
+    }
+    setter(date);
   }
 
   async function offerRequest(body) {
@@ -1559,6 +1596,7 @@ function updateFullMenu(category, newItems) {
           }
         >
           <Header onAdminOpen={() => setShowAdminLogin(true)} />
+          <ClosedDaysNotice {...closedDays} styles={styles} />
 
           <Text style={styles.heading}>
             Din beställning
@@ -1705,7 +1743,7 @@ function updateFullMenu(category, newItems) {
               minimumDate={new Date()}
               onChange={(_, selected) => {
                 setShowOrderDatePicker(Platform.OS === 'ios');
-                if (selected) setOrderDate(formatDate(selected));
+                if (selected) selectAvailableDate(selected, setOrderDate);
               }}
             />
           )}
@@ -1760,6 +1798,7 @@ function updateFullMenu(category, newItems) {
 
           <AppButton
             title="Skicka beställning"
+            disabled={!!closureForDate(closedDays.closures, orderDate)}
             onPress={sendOrder}
           />
 
@@ -1792,6 +1831,7 @@ function updateFullMenu(category, newItems) {
         }
       >
         <Header onAdminOpen={() => setShowAdminLogin(true)} />
+          <ClosedDaysNotice {...closedDays} styles={styles} />
         {admin && <AdminOrderSound soundRef={orderSound}
           ringing={orders.some(order => (order.status || 'Ny') === 'Ny'
             && seenOrdersAtLogin.current !== null && !seenOrdersAtLogin.current.has(String(order.id)))
@@ -1995,7 +2035,7 @@ day === item && styles.dayActive,
         minimumDate={new Date()}
         onChange={(_, selected) => {
           setShowBookingDatePicker(false);
-          if (selected) setBookingDate(formatDate(selected));
+          if (selected) selectAvailableDate(selected, setBookingDate);
         }}
       />
     )}
@@ -2034,6 +2074,7 @@ day === item && styles.dayActive,
 
 <AppButton
   title="Skicka bokningsförfrågan"
+  disabled={!!closureForDate(closedDays.closures, bookingDate)}
   onPress={() => bookTable('event')}
 />
 </>
@@ -2081,7 +2122,7 @@ day === item && styles.dayActive,
                 minimumDate={new Date()}
                 onChange={(_, selected) => {
                   setShowBookingDatePicker(false);
-                  if (selected) setBookingDate(formatDate(selected));
+                  if (selected) selectAvailableDate(selected, setBookingDate);
                 }}
               />
             )}
@@ -2143,6 +2184,7 @@ day === item && styles.dayActive,
 
             <AppButton
               title="Skicka bokning"
+              disabled={!!closureForDate(closedDays.closures, bookingDate)}
               onPress={() => bookTable('table')}
             />
           </>
@@ -2245,7 +2287,7 @@ day === item && styles.dayActive,
                 <Text style={styles.orderSummaryCount}>{orders.filter(order => (order.status || 'Ny') === 'Ny').length} nya</Text>
                 <Text style={styles.orderDetail}>Beställningarna visas nedan. Acceptera när du har sett dem.</Text>
               </View>
-              <AppButton title={showAdminSettings ? 'Stäng inställningar' : 'Inställningar • Meny, priser och erbjudanden'}
+              <AppButton title={showAdminSettings ? 'Stäng inställningar' : 'Inställningar • Meny, priser och stängda dagar'}
                 outline onPress={() => {
                   setShowAdminSettings(value => !value);
                   messageScrollRef.current?.scrollTo({ y: 0, animated: true });
@@ -2254,6 +2296,8 @@ day === item && styles.dayActive,
 
               {showAdminSettings && (
                 <View style={styles.settingsBox}>
+                  <ClosedDaysAdmin client={supabase} closures={closedDays.closures}
+                    refresh={closedDays.refresh} styles={styles} Button={AppButton} />
                   <Text style={styles.adminTitle}>Inställningar</Text>
                   <Text style={styles.muted}>Ändra meny, lägg till maträtter, ändra priser och hantera erbjudanden.</Text>
               <AppButton title="Testa orderljud" outline onPress={testOrderSound} />

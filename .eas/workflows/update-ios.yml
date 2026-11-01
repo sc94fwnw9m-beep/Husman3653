@@ -1,4 +1,4 @@
-name: Publish message keyboard fix for iOS and Android
+name: Publish closed days for iOS and Android
 
 jobs:
   update_ios:
@@ -7,4 +7,4 @@ jobs:
     params:
       platform: all
       channel: production
-      message: 'Keep message field visible above keyboard'
+      message: 'Stängda dagar och semester i ägarinställningarna'

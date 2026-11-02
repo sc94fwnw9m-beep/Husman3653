@@ -1915,7 +1915,7 @@ function updateFullMenu(category, newItems) {
         marginBottom: 12,
         borderRadius: 14,
         overflow: 'hidden',
-        backgroundColor: '#0755ad',
+        backgroundColor: '#142b45',
       }}
     >
       <Image
@@ -1928,14 +1928,14 @@ function updateFullMenu(category, newItems) {
       />
 
       <View style={{
-        backgroundColor: '#0755ad',
+        backgroundColor: '#142b45',
         minHeight: 48,
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: 4,
       }}>
         <Text style={{
-          color: '#ffffff',
+          color: '#d6b46b',
           fontSize: 16,
           fontWeight: '800',
           textAlign: 'center',
@@ -2887,7 +2887,8 @@ function AppButton({
   );
 }
 
-const BLUE = '#0865bd';
+const BLUE = '#142b45';
+const GOLD = '#d6b46b';
 
 const styles = StyleSheet.create({
   page: {
@@ -2998,13 +2999,13 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#d2e2f1',
+    borderColor: GOLD,
     marginRight: 8,
   },
 
   tabActive: {
     backgroundColor: BLUE,
-    borderColor: BLUE,
+    borderColor: GOLD,
   },
 
   tabText: {
@@ -3013,7 +3014,7 @@ const styles = StyleSheet.create({
   },
 
   tabTextActive: {
-    color: '#ffffff',
+    color: GOLD,
   },
 
   days: {
@@ -3028,13 +3029,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#d5e4f2',
+    borderColor: GOLD,
     marginRight: 7,
     marginBottom: 7,
   },
 
   dayActive: {
-    backgroundColor: '#163e68',
+    backgroundColor: '#142b45',
   },
 
   dayText: {
@@ -3043,7 +3044,7 @@ const styles = StyleSheet.create({
   },
 
   dayTextActive: {
-    color: '#ffffff',
+    color: GOLD,
   },
 
   types: {
@@ -3057,13 +3058,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#bdd5eb',
+    borderColor: GOLD,
     marginRight: 6,
   },
 
   typeActive: {
     backgroundColor: BLUE,
-    borderColor: BLUE,
+    borderColor: GOLD,
   },
 
   typeText: {
@@ -3074,7 +3075,7 @@ const styles = StyleSheet.create({
   },
 
   typeTextActive: {
-    color: '#ffffff',
+    color: GOLD,
   },
 
   card: {
@@ -3085,7 +3086,7 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 9,
     borderWidth: 1,
-    borderColor: '#e0eaf4',
+    borderColor: GOLD,
   },
 
   item: {
@@ -3122,11 +3123,11 @@ const styles = StyleSheet.create({
   buttonOutline: {
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: BLUE,
+    borderColor: GOLD,
   },
 
   buttonText: {
-    color: '#ffffff',
+    color: GOLD,
     fontSize: 16,
     fontWeight: '900',
     textAlign: 'center',
@@ -3183,7 +3184,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#cbdceb',
+    borderColor: GOLD,
     borderRadius: 13,
     padding: 13,
     fontSize: 16,
@@ -3193,7 +3194,7 @@ const styles = StyleSheet.create({
   field: {
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#cbdceb',
+    borderColor: GOLD,
     borderRadius: 12,
     padding: 13,
     fontSize: 16,
@@ -3203,7 +3204,7 @@ const styles = StyleSheet.create({
   pickerButton: {
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#cbdceb',
+    borderColor: GOLD,
     borderRadius: 12,
     padding: 15,
     marginBottom: 9,
@@ -3222,11 +3223,11 @@ const styles = StyleSheet.create({
 
   timeButtonActive: {
     backgroundColor: BLUE,
-    borderColor: BLUE,
+    borderColor: GOLD,
   },
 
   timeButtonTextActive: {
-    color: '#ffffff',
+    color: GOLD,
     fontSize: 16,
     fontWeight: '700',
   },
@@ -3243,7 +3244,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: '#eef5fc',
     borderWidth: 1,
-    borderColor: '#d4e3f1',
+    borderColor: GOLD,
   },
 
   adminTitle: {
@@ -3275,14 +3276,14 @@ const styles = StyleSheet.create({
   foodOrderTitle: { fontSize: 24 },
   foodOrderTotal: { fontSize: 22 },
   foodOrderCard: { padding: 20, borderWidth: 2, marginBottom: 18 },
-  newFoodOrderCard: { borderColor: BLUE, backgroundColor: '#eaf5ff' },
+  newFoodOrderCard: { borderColor: GOLD, backgroundColor: '#eaf5ff' },
   orderStatus: { fontSize: 20, fontWeight: '900', color: BLUE, marginBottom: 10 },
   orderDetail: { fontSize: 18, lineHeight: 26, color: '#102b49', marginBottom: 4 },
   orderDish: { fontSize: 20, lineHeight: 28, fontWeight: '800', color: '#102b49', marginTop: 10 },
   orderCard: {
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#d5e4f2',
+    borderColor: GOLD,
     borderRadius: 14,
     padding: 13,
     marginBottom: 12,

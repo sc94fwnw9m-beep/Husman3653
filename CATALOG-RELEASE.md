@@ -20,3 +20,5 @@ Källan har uppdaterats mot driftsatt commit 7fdc4a6 med frysta matlådor, lager
 Databasmigreringen och ägarkontot är nu klara. Butikspubliceringen är ännu inte klar. Den driftsatta kodbasens ägarinloggning verifieras via owner-login och is_restaurant_admin. De nya katalogfunktionerna använder samma Supabase-session och serverkontrollerade ägarrättigheter. Befintliga äldre funktioners åtkomstregler behöver granskas separat. Tidigare uppladdade bilder behålls för att inte bryta äldre klienters bildlänkar.
 
 Generella verify:fixes-harnessen är föråldrad för driftversionens owner-login (saknar ownerLoginInProgress i testkontexten). Den kontrollen passerade inte. Tester för frysta matlådor samt stängda dagar inklusive PostgreSQL-integrationen passerade.
+
+iOS-bygget hittade en befintlig filnamnskollision mellan FrozenMeals.js och frozenMeals.js på macOS. UI-filen döps till FrozenMealViews.js.

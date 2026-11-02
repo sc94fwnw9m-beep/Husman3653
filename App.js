@@ -23,7 +23,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { checkOpenDate, closureForDate, closureText } from './closures';
 import { ClosedDaysAdmin, ClosedDaysNotice, useClosedDays } from './ClosedDays';
 import { useFrozenStock } from './frozenStock';
-import { FrozenMealPicker, FrozenMenuEditor } from './FrozenMeals';
+import { FrozenMealPicker, FrozenMenuEditor } from './FrozenMealViews';
 import { FROZEN_CATEGORY, checkFrozenCart, frozenDishes } from './frozenMeals';
 import * as Notifications from 'expo-notifications';
 Notifications.setNotificationHandler({

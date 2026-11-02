@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "640641134597",
+    "project_id": "husman-lunchrestaurang",
+    "storage_bucket": "husman-lunchrestaurang.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:640641134597:android:f5e245c3e05afd8510ec6c",
+        "android_client_info": {
+          "package_name": "se.husman3653.lunchrestaurang"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBOvvr0Jodo7edRXVGGRnuhs80x5DLb_Tc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

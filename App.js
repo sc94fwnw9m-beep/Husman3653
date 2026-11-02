@@ -3,6 +3,8 @@ import {
   Alert,
   AppState,
   Image,
+  Keyboard,
+  KeyboardAvoidingView,
   Linking,
   Platform,
   Pressable,
@@ -18,8 +20,12 @@ import CatalogManager from './src/CatalogManager';
 import { StatusBar } from 'expo-status-bar';
 import { createClient } from '@supabase/supabase-js';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { checkOpenDate, closureForDate, closureText } from './closures';
+import { ClosedDaysAdmin, ClosedDaysNotice, useClosedDays } from './ClosedDays';
+import { useFrozenStock } from './frozenStock';
+import { FrozenMealPicker, FrozenMenuEditor } from './FrozenMeals';
+import { FROZEN_CATEGORY, checkFrozenCart, frozenDishes } from './frozenMeals';
 import * as Notifications from 'expo-notifications';
-import { useAudioPlayer, setAudioModeAsync } from 'expo-audio';
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false,
@@ -29,7 +35,6 @@ const supabaseUrl = 'https://qryynhzavlevuejpdtos.supabase.co';
 const supabaseKey = 'sb_publishable_-DLe2m1LORuyuro1OkXu0g_M739wwVV';
 
 const supabase = createClient(supabaseUrl, supabaseKey);
-const OWNER_CODE = '3653';
 
 const DEFAULT_LUNCH = {
   Måndag: [
@@ -109,14 +114,10 @@ Sallader: [
     ['Kaffe', 25],
   ],
 
-  'Frysta matlådor': [
-    ['1 matlåda', 65],
-    ['5 matlådor', 290],
-    ['10 matlådor', 550],
-  ],
+  'Frysta matlådor': [],
 };
 
-const ORDER_TYPES = [
+const DEFAULT_ORDER_TYPES = [
   ['Äta här', 139],
   ['Ta med', 129],
   ['Endast matlåda', 119],
@@ -159,29 +160,198 @@ const formatDate = (date) => {
 };
 const formatTime = (date) => date.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
 
-function AdminOrderSound({ soundRef }) {
+function restaurantDate(now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(now);
+  const value = type => parts.find(part => part.type === type).value;
+  return `${value('year')}-${value('month')}-${value('day')}`;
+}
+
+function nextLunchDate(lunchDay, now = new Date()) {
+  const weekday = ['Söndag', 'Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag'].indexOf(lunchDay);
+  if (weekday < 1 || weekday > 5) return '';
+  const date = new Date(`${restaurantDate(now)}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + (weekday - date.getUTCDay() + 7) % 7);
+  return date.toISOString().slice(0, 10);
+}
+
+function lunchReservationError(items, pickupDate, now = new Date()) {
+  const lunches = items.filter(item => item.category === 'Lunch');
+  for (const item of lunches) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(item.lunchDate || '') || item.lunchDate < restaurantDate(now)) {
+      return 'Lunchdatumet har passerat. Ta bort lunchen ur kundkorgen och välj lunchdag igen.';
+    }
+    const date = new Date(`${item.lunchDate}T12:00:00Z`);
+    if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== item.lunchDate ||
+        nextLunchDate(item.lunchDay, date) !== item.lunchDate || item.lunchDate !== pickupDate) {
+      return 'Lunchrätterna måste tillhöra samma dag och datum. Välj lunchdag igen.';
+    }
+  }
+  return '';
+}
+
+function AdminOrderSound({ soundRef, ringing }) {
+  const { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } = require('expo-audio');
   const player = useAudioPlayer(require('./assets/new-order.wav'));
+  const status = useAudioPlayerStatus(player);
 
   useEffect(() => {
     soundRef.current = player;
-    return () => {
-      soundRef.current = null;
-    };
+    return () => { soundRef.current = null; };
   }, [player, soundRef]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!status.isLoaded) return;
+    if (!ringing) {
+      player.pause();
+      player.loop = false;
+      return;
+    }
+    async function startRinging() {
+      try {
+        await setAudioModeAsync({ playsInSilentMode: true });
+        if (cancelled) return;
+        player.volume = 1;
+        player.loop = true;
+        await player.seekTo(0);
+        if (!cancelled) player.play();
+      } catch (error) {
+        console.log('Orderljudet kunde inte spelas:', error);
+      }
+    }
+    startRinging();
+    return () => { cancelled = true; player.pause(); };
+  }, [player, ringing, status.isLoaded]);
 
   return null;
 }
 
 export default function App() {
+  const closedDays = useClosedDays(supabase);
+  const bookingSubmitInProgress = useRef(false);
+  const messageScrollRef = useRef(null);
+  const messageInputRef = useRef(null);
+  const messageFocused = useRef(false);
+
+  function revealMessageInput() {
+    if (!messageFocused.current || !messageInputRef.current) return;
+    requestAnimationFrame(() => {
+      if (!messageFocused.current || !messageInputRef.current) return;
+      messageScrollRef.current?.scrollResponderScrollNativeHandleToKeyboard(
+        messageInputRef.current, 24, true
+      );
+    });
+  }
+
+  useEffect(() => {
+    const subscription = Keyboard.addListener('keyboardDidShow', revealMessageInput);
+    return () => subscription.remove();
+  }, []);
+
   const orderSound = useRef(null);
   const knownOrderIds = useRef(null);
-  const readyOrderIds = useRef(new Set());
+  const seenOrdersAtLogin = useRef(null);
+  const seenBookingsAtLogin = useRef(null);
+  const adminSessionId = useRef(0);
   const orderRefreshInProgress = useRef(false);
+  const orderSubmitInProgress = useRef(false);
+  const menuPublishInProgress = useRef(false);
+  const menuSnapshot = useRef(null);
+  const menuRefreshInProgress = useRef(false);
+  const menuLoadAlertShown = useRef(false);
+  const readyOrderIds = useRef(new Set());
+  const acceptingOrderIds = useRef(new Set());
+  const deletingBookingIds = useRef(new Set());
   const [section, setSection] = useState('Lunch');
    const [expoPushToken, setExpoPushToken] = useState('');
+  const [offerEnabled, setOfferEnabled] = useState(null);
+  const [customerOffers, setCustomerOffers] = useState([]);
+  const [customerOffersLoading, setCustomerOffersLoading] = useState(false);
+  const [customerOffersError, setCustomerOffersError] = useState('');
+  const [customerOffersRevision, setCustomerOffersRevision] = useState(0);
+  const offerListPosition = useRef(0);
+  const offerListScrollPending = useRef(false);
+  useEffect(() => {
+    let active = true;
+    let requestVersion = 0;
+    async function refresh() {
+      const version = ++requestVersion;
+      setCustomerOffersLoading(true);
+      setCustomerOffersError('');
+      try {
+        const { data, error } = await supabase.rpc('list_customer_offers');
+        if (error) throw error;
+        if (active && version === requestVersion) setCustomerOffers(data || []);
+      } catch {
+        if (active && version === requestVersion) {
+          setCustomerOffersError('Erbjudanden kunde inte hämtas. Kontrollera internet och försök igen.');
+        }
+      } finally {
+        if (active && version === requestVersion) setCustomerOffersLoading(false);
+      }
+    }
+    refresh();
+    const foreground = AppState.addEventListener('change', state => {
+      if (state === 'active') refresh();
+    });
+    const timer = setInterval(refresh, 30000);
+    const received = Notifications.addNotificationReceivedListener(notification => {
+      if (notification.request.content.data?.type === 'offer') refresh();
+    });
+    return () => { active = false; clearInterval(timer); foreground.remove(); received.remove(); };
+  }, [customerOffersRevision]);
+  const [offerPreferenceBusy, setOfferPreferenceBusy] = useState(false);
+  const offerPreferenceLock = useRef(false);
+  const offerPreferenceRevision = useRef(0);
+  const [showOfferEditor, setShowOfferEditor] = useState(false);
+  const [showAdminSettings, setShowAdminSettings] = useState(false);
+  const [ownerOffers, setOwnerOffers] = useState([]);
+  const [ownerOffersError, setOwnerOffersError] = useState('');
+  const [ownerOffersLoading, setOwnerOffersLoading] = useState(false);
+  const [ownerOffersRevision, setOwnerOffersRevision] = useState(0);
+  const [changingOfferId, setChangingOfferId] = useState(null);
+  const offerVisibilityLock = useRef(false);
+  const [offerTitle, setOfferTitle] = useState('Erbjudande från Husman');
+  const [offerBody, setOfferBody] = useState('');
+  const [offerAudience, setOfferAudience] = useState(null);
+  const [offerSending, setOfferSending] = useState(false);
+  const offerSendLock = useRef(false);
+  const offerCampaignId = useRef(null);
+  useEffect(() => {
+    if (!expoPushToken) return;
+    let active = true;
+    const refresh = async () => {
+      const revision = offerPreferenceRevision.current;
+      const { data, error } = await supabase.functions.invoke('offer-notifications', {
+        body: { action: 'subscription_status', token: expoPushToken },
+      });
+      if (active && revision === offerPreferenceRevision.current && !offerPreferenceLock.current &&
+          !error && typeof data?.enabled === 'boolean') setOfferEnabled(data.enabled);
+    };
+    refresh().catch(() => {});
+    const listener = AppState.addEventListener('change', state => {
+      if (state === 'active') refresh().catch(() => {});
+    });
+    return () => { active = false; listener.remove(); };
+  }, [expoPushToken]);
    useEffect(() => {
   async function registerForPushNotifications() {
     try {
+      if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('offers', {
+          name: 'Erbjudanden från Husman',
+          importance: Notifications.AndroidImportance.DEFAULT,
+          sound: 'default',
+        });
+        await Notifications.setNotificationChannelAsync('owner-orders', {
+          name: 'Nya matbeställningar',
+          importance: Notifications.AndroidImportance.MAX,
+          sound: 'default',
+          vibrationPattern: [0, 500, 200, 500],
+        });
+      }
       const { status: existingStatus } =
         await Notifications.getPermissionsAsync();
 
@@ -197,7 +367,9 @@ export default function App() {
         return;
       }
 
-      const token = await Notifications.getExpoPushTokenAsync();
+      const token = await Notifications.getExpoPushTokenAsync({
+        projectId: 'd2f4d05f-9222-4f0a-8408-22acea729cc9',
+      });
       setExpoPushToken(token.data);
     } catch (error) {
       console.log('Push notification error:', error);
@@ -216,6 +388,7 @@ export default function App() {
 
   const [weeklyLunch, setWeeklyLunch] =
     useState(DEFAULT_LUNCH);
+  const [menuAvailable, setMenuAvailable] = useState(false);
 const [fullMenu, setFullMenu] = useState(MENU);
 const [catalogRows, setCatalogRows] = useState([]);
 const categories = [...CATEGORIES, ...catalogRows.map(row => row.name).filter(name => !CATEGORIES.includes(name))];
@@ -232,6 +405,13 @@ useEffect(() => {
   const foreground = AppState.addEventListener('change', state => { if (state === 'active') loadCatalog(); });
   return () => { clearInterval(timer); foreground.remove(); };
 }, []);
+
+const frozenInventory = useFrozenStock(supabase);
+  const [ORDER_TYPES, setOrderTypes] = useState(DEFAULT_ORDER_TYPES);
+  const [editLunchPrices, setEditLunchPrices] = useState(false);
+  const [priceDraft, setPriceDraft] = useState(['139', '129', '119']);
+  const priceSaveInProgress = useRef(false);
+  const [savingPrices, setSavingPrices] = useState(false);
   const [orderType, setOrderType] =
     useState('Äta här');
 
@@ -242,6 +422,17 @@ useEffect(() => {
   // Kundens beställning
   const [orderDate, setOrderDate] =
     useState('');
+  const cartLunchDate = cart.find(item => item.category === 'Lunch')?.lunchDate || '';
+  const previousLunchDate = useRef('');
+  useEffect(() => {
+    if (cartLunchDate) {
+      setOrderDate(cartLunchDate);
+      setShowOrderDatePicker(false);
+    } else if (previousLunchDate.current) {
+      setOrderDate('');
+    }
+    previousLunchDate.current = cartLunchDate;
+  }, [cartLunchDate]);
 
   const [orderTime, setOrderTime] =
     useState('');
@@ -275,10 +466,76 @@ useEffect(() => {
   // Admin
   const [admin, setAdmin] =
     useState(false);
+  const [ownerPushStatus, setOwnerPushStatus] = useState('');
+  useEffect(() => {
+    if (!admin || !showAdminSettings || !showOfferEditor || offerSending) return;
+    let active = true;
+    setOwnerOffersLoading(true);
+    setOwnerOffersError('');
+    supabase.rpc('list_owner_offers').then(({ data, error }) => {
+      if (!active) return;
+      if (error) setOwnerOffersError('Erbjudandena kunde inte hämtas. Försök igen.');
+      else setOwnerOffers(data || []);
+    }).catch(() => {
+      if (active) setOwnerOffersError('Erbjudandena kunde inte hämtas. Kontrollera internet.');
+    }).finally(() => { if (active) setOwnerOffersLoading(false); });
+    return () => { active = false; };
+  }, [admin, showAdminSettings, showOfferEditor, offerSending, ownerOffersRevision]);
+  useEffect(() => {
+    Notifications.setNotificationHandler({
+      handleNotification: async notification => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        // In the owner panel the existing order alarm provides the sound.
+        shouldPlaySound: !(admin && notification.request.content.data?.type === 'owner-order'),
+        shouldSetBadge: false,
+      }),
+    });
+  }, [admin]);
+  useEffect(() => {
+    if (!admin) return;
+    let cancelled = false;
+    async function registerOwnerDevice() {
+      const permission = await Notifications.getPermissionsAsync();
+      if (cancelled) return;
+      if (permission.status !== 'granted') {
+        setOwnerPushStatus('Tillåt notiser och ljud i telefonens inställningar.');
+        return;
+      }
+      if (!expoPushToken) {
+        setOwnerPushStatus('Väntar på mobilens notisregistrering.');
+        return;
+      }
+      const { error } = await supabase.rpc('register_owner_push_device', { p_token: expoPushToken });
+      if (!cancelled) setOwnerPushStatus(error
+        ? 'Ägarnotiser kunde inte aktiveras. Försök igen vid nästa inloggning.'
+        : 'Ägarnotiser aktiverade på denna mobil, även när appen är stängd.');
+    }
+    registerOwnerDevice().catch(() => {
+      if (!cancelled) setOwnerPushStatus('Ägarnotiser kunde inte aktiveras just nu.');
+    });
+    return () => { cancelled = true; };
+  }, [admin, expoPushToken]);
+  useEffect(() => {
+    const openOrderNotification = response => {
+      if (response?.notification.request.content.data?.type === 'owner-order') {
+        setShowAdminLogin(true);
+      } else if (response?.notification.request.content.data?.type === 'offer') {
+        setShowCart(false);
+        offerListScrollPending.current = true;
+        setSection('Lunch');
+        setCustomerOffersRevision(value => value + 1);
+        messageScrollRef.current?.scrollTo({ y: offerListPosition.current, animated: true });
+      }
+    };
+    const listener = Notifications.addNotificationResponseReceivedListener(openOrderNotification);
+    Notifications.getLastNotificationResponseAsync().then(openOrderNotification).catch(() => {});
+    return () => listener.remove();
+  }, []);
 
   const [adminEmail, setAdminEmail] =
     useState('');
-const [adminPassword, setAdminPassword] = useState('');
+  const ownerLoginInProgress = useRef(false);
 
   const [ownerCode, setOwnerCode] = useState('');
   const [showAdminLogin, setShowAdminLogin] = useState(false);
@@ -286,6 +543,7 @@ const [adminPassword, setAdminPassword] = useState('');
   const [orders, setOrders] =
     useState([]);
   const [bookings, setBookings] = useState([]);
+  const acknowledgingBookingIds = useRef(new Set());
 
   // Ändra lunchmeny
   const [editDay, setEditDay] =
@@ -302,7 +560,9 @@ const [adminPassword, setAdminPassword] = useState('');
 const [newDishName, setNewDishName] = useState('');
 const [newDishPrice, setNewDishPrice] = useState('139');
 const [adminMenuMode, setAdminMenuMode] = useState('edit');
-const [newDishCategory, setNewDishCategory] = useState('Pasta');
+const [newDishCategory, setNewDishCategory] = useState('Lunch');
+const newDishSaving = useRef(false);
+const [savingNewDish, setSavingNewDish] = useState(false);
   const total = useMemo(
     () =>
       cart.reduce(
@@ -370,15 +630,29 @@ const [newDishCategory, setNewDishCategory] = useState('Pasta');
     }
   }, [admin]);
 async function loadPublishedMenu() {
+  if (menuRefreshInProgress.current) return;
+  menuRefreshInProgress.current = true;
+  try {
   const { data, error } = await supabase
     .from('menu_items')
-    .select('category,day,name,price,active')
+    .select('id,category,day,name,price,active')
     .order('id', { ascending: true });
 
-  if (error) {
-    console.log('Menyn kunde inte hämtas:', error);
-    return;
+  if (error) throw error;
+  const { data: prices, error: priceError } = await supabase.from('husman_lunch_prices')
+    .select('dine_in,takeaway,box_only').eq('id', 1).single();
+  if (priceError || !prices || [prices.dine_in, prices.takeaway, prices.box_only]
+    .some(value => !Number.isFinite(Number(value)) || Number(value) <= 0)) {
+    throw priceError || new Error('Lunchpriserna kunde inte hämtas.');
   }
+  setOrderTypes(DEFAULT_ORDER_TYPES.map(([name], index) =>
+    [name, Number([prices.dine_in, prices.takeaway, prices.box_only][index])]));
+  if (!data?.length) throw new Error('Ingen publicerad meny kunde bekräftas.');
+  if (data.some((row) => row.active !== false
+    && (row.category === 'Lunch' || (typeof row.category === 'string' && row.category !== 'Lunch')) && (
+    typeof row.name !== 'string' || !row.name.trim()
+    || (row.category !== 'Lunch' && (!Number.isFinite(Number(row.price)) || Number(row.price) <= 0))
+  ))) throw new Error('Menyn innehåller en ogiltig maträtt eller ett ogiltigt pris.');
 
   const lunch = { ...DEFAULT_LUNCH };
   const full = { ...MENU };
@@ -392,56 +666,67 @@ async function loadPublishedMenu() {
         seenDays.add(row.day);
       }
       if (row.active !== false && row.name) lunch[row.day].push(row.name);
-    } else if (row.category && row.category !== 'Lunch') {
+    } else if ((typeof row.category === 'string' && row.category !== 'Lunch')) {
       if (!seenCategories.has(row.category)) {
         full[row.category] = [];
         seenCategories.add(row.category);
       }
       if (row.active !== false && row.name) {
-        full[row.category].push([row.name, Number(row.price) || 139]);
+        full[row.category].push([row.name, Number(row.price)]);
       }
     }
   }
 
   setWeeklyLunch(lunch);
-  setFullMenu(old => ({ ...Object.fromEntries(Object.keys(old).map(name => [name, []])), ...full }));
+  setFullMenu(old => ({ ...Object.fromEntries(Object.keys(old).map(name => [name, []])), ...full, [FROZEN_CATEGORY]: frozenDishes(full[FROZEN_CATEGORY]).map((name) => [name, 65]) }));
+  menuSnapshot.current = data || [];
+  setMenuAvailable(true);
+  menuLoadAlertShown.current = false;
+  } catch (error) {
+    console.log('Menyn kunde inte hämtas:', error);
+    setMenuAvailable(false);
+    if (!menuLoadAlertShown.current) {
+      menuLoadAlertShown.current = true;
+      Alert.alert('Meny', 'Den aktuella menyn kunde inte hämtas. Vänta tills anslutningen fungerar innan du beställer.');
+    }
+  } finally {
+    menuRefreshInProgress.current = false;
+  }
  }
 
  async function publishMenuSection(category, day, items) {
-  // Keep existing rows until each replacement has been saved successfully.
-  // Inactive rows remain in the database and can be recovered if needed.
-  const { data: existing, error: readError } = await supabase
-    .from('menu_items')
-    .select('id')
-    .eq('category', category)
-    .eq('day', day)
-    .order('id', { ascending: true });
-  if (readError) return readError;
-
+  if (menuPublishInProgress.current) return new Error('En meny sparas redan.');
+  if (menuSnapshot.current === null) return new Error('Hämta menyn innan den sparas.');
+  if (category !== 'Lunch' && !Object.prototype.hasOwnProperty.call(MENU, category)) {
+    return new Error('Ogiltig menykategori.');
+  }
   const rows = items.map((item) => ({
-    category,
-    day,
     name: category === 'Lunch' ? item : item[0],
-    price: category === 'Lunch' ? 139 : Number(item[1]),
-    active: true,
+    price: category === 'Lunch' ? ORDER_TYPES[0][1] : Number(item[1]),
   }));
-
-  for (let index = 0; index < rows.length; index += 1) {
-    const row = existing?.[index];
-    const result = row
-      ? await supabase.from('menu_items').update(rows[index]).eq('id', row.id).select('id')
-      : await supabase.from('menu_items').insert(rows[index]).select('id');
-    if (result.error) return result.error;
-    if (!result.data?.length) return new Error('Saknar behörighet att spara menyn.');
+  if (rows.some((row) => typeof row.name !== 'string' || !row.name.trim()
+    || !Number.isFinite(row.price) || row.price <= 0)) {
+    return new Error('Alla maträtter måste ha namn och giltigt pris.');
   }
-
-  for (const row of (existing || []).slice(rows.length)) {
-    const { data, error } = await supabase.from('menu_items')
-      .update({ active: false }).eq('id', row.id).select('id');
-    if (error) return error;
-    if (!data?.length) return new Error('Saknar behörighet att uppdatera menyn.');
+  menuPublishInProgress.current = true;
+  try {
+    // One RPC transaction: do not fall back to partial client-side writes.
+    const expected = menuSnapshot.current.filter((row) => row.category === category && row.day === day);
+    const { data, error } = await supabase.rpc('publish_menu_section_v1', {
+      p_category: category, p_day: day, p_items: rows, p_expected: expected,
+    });
+    if (!error && Array.isArray(data)) {
+      menuSnapshot.current = [
+        ...menuSnapshot.current.filter((row) => row.category !== category || row.day !== day),
+        ...data,
+      ];
+    }
+    return error;
+  } catch (error) {
+    return error;
+  } finally {
+    menuPublishInProgress.current = false;
   }
-  return null;
  }
 
  async function saveFullMenu(section) {
@@ -456,25 +741,107 @@ async function loadPublishedMenu() {
   Alert.alert('Klart', `${section} är uppdaterad för alla kunder.`);
  }
 
+ async function saveFrozenMenu(items, stock, expectedStock) {
+  if (menuPublishInProgress.current || !frozenInventory.loaded || menuSnapshot.current === null) return false;
+  menuPublishInProgress.current = true;
+  try {
+    const { data, error } = await supabase.rpc('publish_frozen_menu_v1', {
+      p_items: items.map(([name, price]) => ({ name, price })),
+      p_expected: menuSnapshot.current.filter(row => row.category === FROZEN_CATEGORY && row.day === ''),
+      p_stock: stock, p_expected_stock: expectedStock,
+    });
+    if (error) throw error;
+    menuSnapshot.current = [...menuSnapshot.current.filter(row => row.category !== FROZEN_CATEGORY || row.day !== ''), ...data];
+    setFullMenu(old => ({ ...old, [FROZEN_CATEGORY]: items }));
+    frozenInventory.refresh();
+    Alert.alert('Sparat', 'Maträtter och lagersaldo är sparade. Rätter med 0 i lager visas som Slut i lager.');
+    return true;
+  } catch (error) {
+    frozenInventory.refresh();
+    Alert.alert('Frysta matlådor', String(error.message || '').includes('changed')
+      ? 'Menyn eller lagret har ändrats, till exempel genom en beställning. Dina texter finns kvar. Öppna menyn igen för att hämta aktuellt saldo innan du ändrar och sparar.'
+      : 'Maträtter och lager kunde inte sparas. Dina texter finns kvar.');
+    return false;
+  } finally { menuPublishInProgress.current = false; }
+ }
+
+ function addFrozenBundle(bundle) {
+  if (!menuAvailable) { Alert.alert('Frysta matlådor', 'Vänta tills den aktuella menyn har hämtats.'); return false; }
+  addToCart(bundle.name, bundle.price, FROZEN_CATEGORY, null, {
+    frozenPack: bundle.frozenPack, frozenItems: bundle.frozenItems,
+  });
+  return true;
+ }
+
+ function mealPrice(basePrice, category, type = orderType) {
+  const base = Number(basePrice);
+  if (['Frukost', 'Frysta matlådor'].includes(category)) return base;
+  const selectedPrice = ORDER_TYPES.find(([name]) => name === type)?.[1] ?? 139;
+  return category === 'Lunch' ? selectedPrice : Math.max(1, base + selectedPrice - ORDER_TYPES[0][1]);
+ }
+
+ useEffect(() => {
+  setCart(old => old.map(item => ({ ...item,
+    price: mealPrice(item.basePrice ?? item.price, item.category, orderType),
+  })));
+ }, [ORDER_TYPES]);
+
+ async function saveLunchPrices() {
+  if (priceSaveInProgress.current) return;
+  const values = priceDraft.map(value => Number(value.trim().replace(',', '.')));
+  if (values.some(value => !Number.isFinite(value) || value <= 0 || value > 10000)) {
+    Alert.alert('Lunchpriser', 'Skriv ett giltigt pris mellan 1 och 10 000 kr i varje ruta.');
+    return;
+  }
+  priceSaveInProgress.current = true;
+  setSavingPrices(true);
+  try {
+    const { data, error } = await supabase.from('husman_lunch_prices')
+      .update({ dine_in: values[0], takeaway: values[1], box_only: values[2] })
+      .eq('id', 1).select('dine_in,takeaway,box_only').single();
+    if (error || !data) throw error || new Error('Priserna sparades inte.');
+    setOrderTypes(DEFAULT_ORDER_TYPES.map(([name], index) => [name, values[index]]));
+    setEditLunchPrices(false);
+    Alert.alert('Klart', 'Lunchpriserna är sparade. Kunderna får de nya priserna automatiskt.');
+  } catch (error) {
+    Alert.alert('Lunchpriser', 'Kunde inte spara priserna. Dina ändringar finns kvar så att du kan försöka igen.');
+  } finally {
+    priceSaveInProgress.current = false;
+    setSavingPrices(false);
+  }
+ }
+
  function selectOrderType(name) {
   const selectedPrice = ORDER_TYPES.find(([type]) => type === name)?.[1];
   if (selectedPrice == null) return;
   setCart((old) => old.map((item) =>
-    item.category === 'Lunch'
-      ? { ...item, price: selectedPrice }
-      : item
+    ({ ...item, price: mealPrice(item.basePrice ?? item.price, item.category, name) })
   ));
   setOrderType(name);
  }
 
- function addToCart(name, basePrice, category) {
-  const price = category === 'Lunch' ? lunchPrice : Number(basePrice);
+ function addToCart(name, basePrice, category, lunchDay = null, details = {}) {
+  if (!menuAvailable) {
+    Alert.alert('Meny', 'Vänta tills den aktuella menyn har hämtats.');
+    return;
+  }
+  const lunchDate = category === 'Lunch' ? nextLunchDate(lunchDay) : null;
+  if (category === 'Lunch' && !lunchDate) return;
+  const closure = closureForDate(closedDays.closures, lunchDate);
+  if (closure) { Alert.alert('Stängt', closureText(closure)); return; }
+  if (lunchDate && cart.some(item => item.category === 'Lunch' && item.lunchDate !== lunchDate)) {
+    Alert.alert('Lunchbeställning', 'Beställ en lunchdag åt gången. Slutför beställningen eller ta bort lunchrätterna i kundkorgen innan du väljer en annan dag.');
+    return;
+  }
+  const price = mealPrice(basePrice, category);
   setCart((old) => {
+    if (lunchDate && old.some(item => item.category === 'Lunch' && item.lunchDate !== lunchDate)) return old;
     const found = old.find(
       (item) =>
         item.name === name &&
         Number(item.basePrice ?? item.price) === Number(basePrice) &&
-        item.category === category
+        item.category === category &&
+        (category !== 'Lunch' || item.lunchDate === lunchDate)
     );
 
     if (found) {
@@ -494,6 +861,8 @@ async function loadPublishedMenu() {
         price,
         basePrice: Number(basePrice),
         category,
+        ...(category === 'Lunch' ? { lunchDay, lunchDate } : {}),
+        ...(category === FROZEN_CATEGORY ? details : {}),
         qty: 1,
         note: '',
       },
@@ -521,6 +890,11 @@ async function loadPublishedMenu() {
   }
 
   async function sendOrder() {
+    if (orderSubmitInProgress.current) return;
+    if (!menuAvailable) {
+      Alert.alert('Meny', 'Den aktuella menyn måste hämtas innan du beställer.');
+      return;
+    }
     if (cart.length === 0) {
       Alert.alert(
         'Beställning',
@@ -545,6 +919,21 @@ async function loadPublishedMenu() {
       return;
     }
 
+    const lunchError = lunchReservationError(cart, orderDate.trim());
+    if (lunchError) {
+      Alert.alert('Lunchbeställning', lunchError);
+      return;
+    }
+
+    orderSubmitInProgress.current = true;
+    try {
+    const frozenError = await checkFrozenCart(supabase, cart);
+    if (frozenError) { Alert.alert('Frysta matlådor', frozenError); return; }
+    const availability = await checkOpenDate(supabase, orderDate.trim());
+    if (!availability.allowed) {
+      Alert.alert('Beställning', availability.message);
+      return;
+    }
     const { error } = await supabase
       .from('orders')
       .insert({
@@ -569,7 +958,9 @@ async function loadPublishedMenu() {
 
       Alert.alert(
         'Beställning',
-        'Beställningen kunde inte skickas just nu.'
+        error.message?.includes('FROZEN_STOCK') ? 'En eller flera matlådor har tagit slut eller räcker inte. Välj matlådorna igen.' : error.message?.includes('RESTAURANT_CLOSED')
+          ? 'Restaurangen är stängd det datumet. Välj ett annat datum.'
+          : 'Beställningen kunde inte skickas just nu.'
       );
 
       return;
@@ -580,6 +971,7 @@ async function loadPublishedMenu() {
       'Beställningen är skickad till restaurangen. Betalning sker på restaurangen.'
     );
 
+    frozenInventory.refresh();
     setCart([]);
     setCustomerName('');
     setCustomerPhone('');
@@ -587,9 +979,15 @@ async function loadPublishedMenu() {
     setOrderDate('');
     setOrderTime('');
     setShowCart(false);
+    } catch (error) {
+      Alert.alert('Beställning', 'Beställningen kunde inte bekräftas. Kontrollera med restaurangen innan du skickar igen.');
+    } finally {
+      orderSubmitInProgress.current = false;
+    }
   }
 
   async function bookTable(kind = 'table') {
+    if (bookingSubmitInProgress.current) return;
     if (!bookingName.trim() || !bookingPhone.trim()) {
       Alert.alert('Boka bord', 'Fyll i namn och telefonnummer.');
       return;
@@ -606,6 +1004,13 @@ async function loadPublishedMenu() {
       return;
     }
 
+    bookingSubmitInProgress.current = true;
+    try {
+    const availability = await checkOpenDate(supabase, bookingDate.trim());
+    if (!availability.allowed) {
+      Alert.alert('Bokning', availability.message);
+      return;
+    }
     const { error } = await supabase
       .from('bookings')
       .insert({
@@ -624,7 +1029,9 @@ async function loadPublishedMenu() {
 
       Alert.alert(
         'Boka bord',
-        'Bokningen kunde inte skickas just nu.'
+        error.message?.includes('FROZEN_STOCK') ? 'En eller flera matlådor har tagit slut eller räcker inte. Välj matlådorna igen.' : error.message?.includes('RESTAURANT_CLOSED')
+          ? 'Restaurangen är stängd det datumet. Välj ett annat datum.'
+          : 'Bokningen kunde inte skickas just nu.'
       );
 
       return;
@@ -641,25 +1048,214 @@ async function loadPublishedMenu() {
     setBookingPhone('');
     setBookingGuests('2');
     setBookingMessage('');
+    } catch {
+      Alert.alert('Bokning', 'Bokningen kunde inte bekräftas. Kontrollera med restaurangen innan du skickar igen.');
+    } finally { bookingSubmitInProgress.current = false; }
+  }
+
+  function selectAvailableDate(selected, setter) {
+    const date = formatDate(selected);
+    const closure = closureForDate(closedDays.closures, date);
+    if (closure) {
+      setter('');
+      Alert.alert('Stängt', closureText(closure));
+      return;
+    }
+    setter(date);
+  }
+
+  async function offerRequest(body) {
+    const { data, error } = await supabase.functions.invoke('offer-notifications', { body });
+    if (error) {
+      let message = 'Kunde inte nå erbjudandefunktionen. Försök igen.';
+      try { message = (await error.context.json()).error || message; } catch {}
+      throw new Error(message);
+    }
+    if (data?.error && !data?.campaign) throw new Error(data.error);
+    return data;
+  }
+
+  async function changeOfferPreference(enabled) {
+    if (offerPreferenceLock.current) return;
+    offerPreferenceLock.current = true;
+    offerPreferenceRevision.current += 1;
+    setOfferPreferenceBusy(true);
+    try {
+      if (enabled) {
+        let permission = await Notifications.getPermissionsAsync();
+        if (permission.status !== 'granted') permission = await Notifications.requestPermissionsAsync();
+        if (permission.status !== 'granted') {
+          Alert.alert('Erbjudanden', 'Tillåt notiser i mobilens inställningar för att ta emot erbjudanden.');
+          return;
+        }
+      }
+      const token = expoPushToken || (await Notifications.getExpoPushTokenAsync({
+        projectId: 'd2f4d05f-9222-4f0a-8408-22acea729cc9',
+      })).data;
+      const result = await offerRequest({
+        action: enabled ? 'subscribe' : 'unsubscribe', token, consent_version: 'offers-v1',
+      });
+      setExpoPushToken(token);
+      setOfferEnabled(result.enabled);
+      Alert.alert('Erbjudanden', enabled ? 'Du får nu erbjudanden från Husman via appnotiser. Du kan stänga av dem här när du vill.' : 'Erbjudanden är avstängda.');
+    } catch (error) {
+      Alert.alert('Erbjudanden', error.message || 'Ditt val kunde inte sparas. Försök igen.');
+    } finally {
+      offerPreferenceLock.current = false;
+      setOfferPreferenceBusy(false);
+    }
+  }
+
+  async function refreshOfferAudience() {
+    try {
+      const result = await offerRequest({ action: 'audience' });
+      setOfferAudience(result.count);
+    } catch (error) { Alert.alert('Erbjudanden', error.message); }
+  }
+
+  async function sendOfferConfirmed() {
+    if (offerSendLock.current) return;
+    offerSendLock.current = true;
+    setOfferSending(true);
+    // Preserve the same id after an uncertain response, preventing duplicate sends.
+    if (!offerCampaignId.current) {
+      offerCampaignId.current = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.floor(Math.random() * 16);
+        return (c === 'x' ? r : (r & 3) | 8).toString(16);
+      });
+    }
+    try {
+      const result = await offerRequest({ action: 'send', id: offerCampaignId.current,
+        title: offerTitle.trim(), body: offerBody.trim() });
+      const campaign = result.campaign;
+      if (!campaign) throw new Error('Kunde inte kontrollera utskicket. Tryck igen för att kontrollera samma utskick.');
+      if (campaign.status === 'sending') {
+        Alert.alert('Erbjudanden', 'Utskicket pågår. Tryck igen för att kontrollera status. Det skickas inte dubbelt.');
+        return;
+      }
+      Alert.alert('Erbjudanden', `${campaign.accepted} notiser har tagits emot av notistjänsten.${campaign.failed ? ` ${campaign.failed} kunde inte skickas.` : ''}${campaign.uncertain ? ` Status är osäker för ${campaign.uncertain}.` : ''}${campaign.status === 'partial' ? ' Hela utskicket kunde inte slutföras.' : ''}`);
+      if (campaign.status === 'completed') {
+        setOfferBody('');
+        offerCampaignId.current = null;
+      }
+    } catch (error) {
+      Alert.alert('Erbjudanden', `${error.message}\nTryck igen för att kontrollera samma utskick utan att skicka dubbelt.`);
+    } finally {
+      offerSendLock.current = false;
+      setOfferSending(false);
+    }
+  }
+
+  function confirmOffer() {
+    if (offerSendLock.current) return;
+    if (!offerTitle.trim() || !offerBody.trim()) {
+      Alert.alert('Erbjudanden', 'Skriv en rubrik och ditt erbjudande.');
+      return;
+    }
+    Alert.alert('Skicka erbjudande?', `${offerTitle.trim()}\n\n${offerBody.trim()}\n\nPubliceras i appens Erbjudanden tills du raderar det och skickas som notis till kunder som har tackat ja. Skriv giltighetstid och villkor i texten.`, [
+      { text: 'Avbryt', style: 'cancel' }, { text: 'Skicka', onPress: sendOfferConfirmed },
+    ]);
+  }
+
+  async function changeOfferVisibility(offer, hidden) {
+    if (!admin || offerVisibilityLock.current) return;
+    offerVisibilityLock.current = true;
+    setChangingOfferId(offer.id);
+    try {
+      const { data, error } = await supabase.rpc('set_customer_offer_hidden', {
+        p_id: offer.id, p_hidden: hidden,
+      });
+      if (error || data !== true) throw error || new Error('Erbjudandet hittades inte.');
+      if (hidden) setOwnerOffers(current => current.filter(item => item.id !== offer.id));
+      setOwnerOffersRevision(value => value + 1);
+      setCustomerOffersRevision(value => value + 1);
+      Alert.alert('Erbjudanden', hidden
+        ? 'Erbjudandet är borttaget från kundlistan och din adminlista. Redan skickade notiser finns kvar på mobilen.'
+        : 'Erbjudandet visas igen i kundlistan. Ingen ny notis skickas.');
+    } catch {
+      Alert.alert('Erbjudanden', 'Ändringen kunde inte sparas. Kontrollera internet och försök igen.');
+    } finally {
+      offerVisibilityLock.current = false;
+      setChangingOfferId(null);
+    }
+  }
+
+  function confirmRemoveOffer(offer) {
+    Alert.alert('Radera erbjudande?', `${offer.title}\n\nTas bort från kundernas lista och din adminlista. Redan skickade notiser finns kvar.`, [
+      { text: 'Avbryt', style: 'cancel' },
+      { text: 'Radera', style: 'destructive', onPress: () => changeOfferVisibility(offer, true) },
+    ]);
   }
 
   async function login() {
-  if (ownerCode.trim() !== OWNER_CODE) {
-    Alert.alert('Admin', 'Fel ägarkod.');
-    return;
+    if (ownerLoginInProgress.current) return;
+    if (!adminEmail.trim() || !/^\d{4,12}$/.test(ownerCode.trim())) {
+      Alert.alert('Admin', 'Fyll i e-post och din ägarkod (4–12 siffror).');
+      return;
+    }
+    ownerLoginInProgress.current = true;
+    try {
+      const { data, error } = await supabase.functions.invoke('owner-login', {
+        body: { email: adminEmail.trim().toLowerCase(), code: ownerCode.trim() },
+      });
+      if (error || !data?.access_token || !data?.refresh_token) {
+        Alert.alert('Admin', 'Kunde inte logga in. Kontrollera e-post och ägarkod. Vid flera felaktiga försök, vänta 15 minuter.');
+        return;
+      }
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: data.access_token, refresh_token: data.refresh_token,
+      });
+      if (sessionError) {
+        Alert.alert('Admin', 'Kunde inte bekräfta inloggningen. Försök igen.');
+        return;
+      }
+      const { data: isOwner, error: ownerError } = await supabase.rpc('is_restaurant_admin');
+      if (ownerError || isOwner !== true) {
+        await supabase.auth.signOut();
+        setOwnerCode('');
+        Alert.alert('Admin', 'Kontot saknar restaurangens ägarbehörighet.');
+        return;
+      }
+      const dishes = weeklyLunch[editDay] || [];
+      setEditDish1(dishes[0] || '');
+      setEditDish2(dishes[1] || '');
+      setEditDish3(dishes[2] || '');
+      setOwnerCode('');
+      adminSessionId.current += 1;
+      seenOrdersAtLogin.current = null;
+      seenBookingsAtLogin.current = null;
+      orderSound.current?.pause();
+      setShowAdminSettings(false);
+      setShowCart(false);
+      messageScrollRef.current?.scrollTo({ y: 0, animated: false });
+      setAdmin(true);
+      // Remove only owner-order notices; customer meal-ready notices remain.
+      Notifications.getPresentedNotificationsAsync().then(notifications =>
+        Promise.all(notifications
+          .filter(item => item.request.content.data?.type === 'owner-order')
+          .map(item => Notifications.dismissNotificationAsync(item.request.identifier)))
+      ).catch(() => {});
+    } catch (error) {
+      Alert.alert('Admin', 'Kunde inte logga in just nu.');
+    } finally {
+      ownerLoginInProgress.current = false;
+    }
   }
-
-  if (!adminEmail.trim()) {
-    Alert.alert('Admin', 'Fyll i e-post.');
-    return;
-  }
-
-
-setAdmin(true);
-     }
 async function logout() {
+  adminSessionId.current += 1;
+  orderSound.current?.pause();
+  seenOrdersAtLogin.current = null;
+  seenBookingsAtLogin.current = null;
+  setOwnerPushStatus('');
+  setShowOfferEditor(false);
+  setShowAdminSettings(false);
+  setOfferAudience(null);
+  setOfferBody('');
+  offerCampaignId.current = null;
+  // Device registration stays on the server to notify this owner after logout.
   await supabase.auth.signOut();
 
+  setOwnerCode('');
   setAdmin(false);
   setOrders([]);
   knownOrderIds.current = null;
@@ -671,38 +1267,23 @@ async function logout() {
   async function loadOrders(silent = false) {
     if (orderRefreshInProgress.current) return;
     orderRefreshInProgress.current = true;
-    const { data, error } =
-      await supabase
-        .from('orders')
-        .select('*')
-        .order(
-          'created_at',
-          { ascending: false }
-        );
-    orderRefreshInProgress.current = false;
-
-    if (error) {
+    const sessionId = adminSessionId.current;
+    try {
+      const { data, error } = await supabase.from('orders').select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      if (sessionId !== adminSessionId.current) return;
+      const latest = data || [];
+      const ids = new Set(latest.map((order) => String(order.id)));
+      if (seenOrdersAtLogin.current === null) seenOrdersAtLogin.current = ids;
+      knownOrderIds.current = ids;
+      setOrders(latest);
+    } catch (error) {
       console.log(error);
-
-      if (!silent) {
-        Alert.alert(
-          'Beställningar',
-          'Kunde inte hämta beställningar.'
-        );
-      }
-
-      return;
+      if (!silent) Alert.alert('Beställningar', 'Kunde inte hämta beställningar.');
+    } finally {
+      orderRefreshInProgress.current = false;
     }
-
-   const latest = data || [];
-    const ids = new Set(latest.map((order) => String(order.id)));
-    if (knownOrderIds.current !== null && latest.some(
-      (order) => !knownOrderIds.current.has(String(order.id))
-    )) {
-      await testOrderSound();
-    }
-    knownOrderIds.current = ids;
-    setOrders(latest);
   }
 
   function confirmDeleteOrder(order) {
@@ -734,19 +1315,62 @@ async function logout() {
     );
   }
 
+  async function acknowledgeBooking(booking) {
+    if (acknowledgingBookingIds.current.has(booking.id)) return;
+    acknowledgingBookingIds.current.add(booking.id);
+    try {
+      const { data, error } = await supabase.from('bookings')
+        .update({ admin_seen: true }).eq('id', booking.id).select('id').single();
+      if (error || !data) throw error || new Error('Bokningen kunde inte kvitteras.');
+      setBookings(current => current.map(item =>
+        item.id === booking.id ? { ...item, admin_seen: true } : item));
+    } catch (error) {
+      Alert.alert('Bokning', 'Kunde inte markera bokningen som sedd. Försök igen.');
+    } finally {
+      acknowledgingBookingIds.current.delete(booking.id);
+    }
+  }
+
   async function loadBookings() {
+    const sessionId = adminSessionId.current;
     const { data, error } = await supabase
       .from('bookings')
       .select('*')
       .order('booking_date', { ascending: true });
 
-    if (!error) setBookings(data || []);
+    if (!error && sessionId === adminSessionId.current) {
+      if (seenBookingsAtLogin.current === null) {
+        seenBookingsAtLogin.current = new Set((data || []).map(item => String(item.id)));
+      }
+      setBookings(data || []);
+    }
+  }
+
+  async function acceptOrder(order) {
+    if (acceptingOrderIds.current.has(order.id)) return;
+    acceptingOrderIds.current.add(order.id);
+    try {
+      const { data, error } = await supabase.from('orders')
+        .update({ status: 'Accepterad' }).eq('id', order.id).eq('status', 'Ny').select('id');
+      if (error || !data?.length) {
+        Alert.alert('Beställning', 'Beställningen kunde inte accepteras. Uppdatera beställningarna och försök igen.');
+        return;
+      }
+      setOrders(current => current.map(item =>
+        item.id === order.id ? { ...item, status: 'Accepterad' } : item
+      ));
+    } catch (error) {
+      Alert.alert('Beställning', 'Beställningen kunde inte accepteras just nu. Försök igen.');
+    } finally {
+      acceptingOrderIds.current.delete(order.id);
+    }
   }
 
   async function testOrderSound() {
     try {
       const player = orderSound.current;
       if (!player) throw new Error('Ljudet laddas fortfarande.');
+      const { setAudioModeAsync } = require('expo-audio');
       await setAudioModeAsync({ playsInSilentMode: true });
       player.volume = 1;
       await player.seekTo(0);
@@ -754,6 +1378,26 @@ async function logout() {
     } catch (error) {
       Alert.alert('Orderljud', 'Ljudet kunde inte spelas. Kontrollera telefonens volym och försök igen.');
     }
+  }
+
+  async function testOwnerNotification() {
+    if (!expoPushToken) {
+      Alert.alert('Ägarnotis', 'Tillåt notiser och vänta på mobilens registrering.');
+      return;
+    }
+    const { error } = await supabase.rpc('test_owner_push_notification', { p_token: expoPushToken });
+    Alert.alert('Ägarnotis', error
+      ? 'Testnotisen kunde inte skickas. Försök igen.'
+      : 'Testnotisen är köad. Kontrollera att den kommer fram med ljud.');
+  }
+
+  async function disableOwnerNotifications() {
+    const { error } = await supabase.rpc('unregister_owner_push_device', { p_token: expoPushToken });
+    if (error) {
+      Alert.alert('Ägarnotis', 'Kunde inte stänga av notiserna. Försök igen.');
+      return;
+    }
+    setOwnerPushStatus('Ägarnotiser avstängda på denna mobil. Logga in igen för att aktivera.');
   }
 
   async function openCustomerSms(phone, text) {
@@ -768,6 +1412,37 @@ async function logout() {
     } catch (error) {
       Alert.alert('SMS-appen kunde inte öppnas', text);
     }
+  }
+
+  function confirmDeleteBooking(booking) {
+    Alert.alert(
+      'Radera bokning?',
+      `Bokningen den ${booking.booking_date} kl. ${booking.booking_time} för ${booking.guests || 2} personer tas bort. Kunden får inget automatiskt meddelande om raderingen.`,
+      [
+        { text: 'Avbryt', style: 'cancel' },
+        {
+          text: 'Radera',
+          style: 'destructive',
+          onPress: async () => {
+            if (deletingBookingIds.current.has(booking.id)) return;
+            deletingBookingIds.current.add(booking.id);
+            try {
+              const { data, error } = await supabase.from('bookings')
+                .delete().eq('id', booking.id).select('id');
+              if (error || !data?.length) {
+                Alert.alert('Bokning', 'Bokningen kunde inte raderas. Uppdatera bokningarna och försök igen.');
+                return;
+              }
+              setBookings(current => current.filter(item => item.id !== booking.id));
+            } catch (error) {
+              Alert.alert('Bokning', 'Bokningen kunde inte raderas just nu. Försök igen.');
+            } finally {
+              deletingBookingIds.current.delete(booking.id);
+            }
+          },
+        },
+      ]
+    );
   }
 
   function bookingReply(booking) {
@@ -874,43 +1549,52 @@ function updateFullMenu(category, newItems) {
   }));
 }
    async function addNewDish() {
-  if (!newDishName.trim()) {
+  if (newDishSaving.current) return;
+  const name = newDishName.trim();
+  if (!name) {
     Alert.alert('Maträtt', 'Skriv maträttens namn.');
     return;
   }
-
-  const price = Number(newDishPrice);
-
-  if (!price || price <= 0) {
+  const category = newDishCategory;
+  const day = editDay;
+  const isLunch = category === 'Lunch';
+  const price = isLunch ? ORDER_TYPES[0][1] : Number(newDishPrice.replace(',', '.'));
+  if (!Number.isFinite(price) || price <= 0) {
     Alert.alert('Maträtt', 'Skriv ett giltigt pris.');
     return;
   }
-
-  const category = newDishCategory;
-  const isLunch = category === 'Lunch';
   const newItems = isLunch
-    ? [...(weeklyLunch[editDay] || []), newDishName.trim()]
-    : [...(fullMenu[category] || []), [newDishName.trim(), price]];
-
-  const error = await publishMenuSection(
-    category, isLunch ? editDay : '', newItems
-  );
-
-  if (error) {
-    Alert.alert('Fel', 'Maträtten kunde inte sparas.');
-    return;
+    ? [...(weeklyLunch[day] || []), name]
+    : [...(fullMenu[category] || []), [name, price]];
+  newDishSaving.current = true;
+  setSavingNewDish(true);
+  try {
+    const error = await publishMenuSection(category, isLunch ? day : '', newItems);
+    if (error) {
+      if (String(error.message || '').includes('Menu changed elsewhere')) {
+        await loadPublishedMenu();
+        Alert.alert('Menyn har uppdaterats', 'Den senaste menyn har hämtats. Tryck Spara ny maträtt igen. Namnet du skrev finns kvar.');
+      } else {
+        console.log('Ny maträtt kunde inte sparas:', error);
+        Alert.alert('Maträtt', 'Maträtten kunde inte sparas. Namnet finns kvar så att du kan försöka igen.');
+      }
+      return;
+    }
+    if (isLunch) {
+      setWeeklyLunch(old => ({ ...old, [day]: newItems }));
+      setEditDish1(newItems[0] || '');
+      setEditDish2(newItems[1] || '');
+      setEditDish3(newItems[2] || '');
+    } else {
+      setFullMenu(old => ({ ...old, [category]: newItems }));
+    }
+    setNewDishName('');
+    setNewDishPrice(String(ORDER_TYPES[0][1]));
+    Alert.alert('Klart', isLunch ? `Maträtten är tillagd på ${day} och visas för kunderna.` : 'Den nya maträtten är tillagd.');
+  } finally {
+    newDishSaving.current = false;
+    setSavingNewDish(false);
   }
-
-  if (isLunch) {
-    setWeeklyLunch((old) => ({ ...old, [editDay]: newItems }));
-  } else {
-    setFullMenu((old) => ({ ...old, [category]: newItems }));
-  }
-
-  setNewDishName('');
-  setNewDishPrice('139');
-
-  Alert.alert('Klart', 'Den nya maträtten är tillagd.');
 }
    async function deleteDish(category, index) {
   const isLunch = category === 'Lunch';
@@ -953,12 +1637,19 @@ function updateFullMenu(category, newItems) {
       <SafeAreaView style={styles.page}>
         <StatusBar style="dark" />
 
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
         <ScrollView
+          ref={messageScrollRef}
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={
             styles.content
           }
         >
           <Header onAdminOpen={() => setShowAdminLogin(true)} />
+          <ClosedDaysNotice {...closedDays} styles={styles} />
 
           <Text style={styles.heading}>
             Din beställning
@@ -983,6 +1674,9 @@ function updateFullMenu(category, newItems) {
                     {item.price} kr ×{' '}
                     {item.qty}
                   </Text>
+                  {item.category === 'Lunch' && (
+                    <Text style={styles.muted}>{item.lunchDay} {item.lunchDate}</Text>
+                  )}
                 </View>
 
                 <View style={styles.qty}>
@@ -1028,7 +1722,7 @@ function updateFullMenu(category, newItems) {
                     </Text>
                   </TouchableOpacity>
                 </View>
-                </View>
+              </View>
             ))
           )}
 
@@ -1086,19 +1780,23 @@ function updateFullMenu(category, newItems) {
             Datum 📅
           </Text>
 
-          <TouchableOpacity style={styles.pickerButton} onPress={() => setShowOrderDatePicker(true)}>
+          <TouchableOpacity style={styles.pickerButton} disabled={!!cartLunchDate}
+            onPress={() => setShowOrderDatePicker(true)}>
             <Text style={orderDate ? styles.pickerValue : styles.pickerPlaceholder}>
               {orderDate || 'Välj datum'}
             </Text>
           </TouchableOpacity>
-          {showOrderDatePicker && (
+          {!!cartLunchDate && (
+            <Text style={styles.muted}>Datumet är låst till vald lunchdag: {cart.find(item => item.category === 'Lunch')?.lunchDay}.</Text>
+          )}
+          {showOrderDatePicker && !cartLunchDate && (
             <DateTimePicker
               value={orderDate ? new Date(`${orderDate}T12:00:00`) : new Date()}
               mode="date"
               minimumDate={new Date()}
               onChange={(_, selected) => {
                 setShowOrderDatePicker(Platform.OS === 'ios');
-                if (selected) setOrderDate(formatDate(selected));
+                if (selected) selectAvailableDate(selected, setOrderDate);
               }}
             />
           )}
@@ -1130,6 +1828,12 @@ function updateFullMenu(category, newItems) {
           </Text>
 
           <TextInput
+            ref={messageInputRef}
+            onFocus={() => {
+              messageFocused.current = true;
+              revealMessageInput();
+            }}
+            onBlur={() => { messageFocused.current = false; }}
             style={styles.messageInput}
             multiline
             value={message}
@@ -1147,6 +1851,7 @@ function updateFullMenu(category, newItems) {
 
           <AppButton
             title="Skicka beställning"
+            disabled={!!closureForDate(closedDays.closures, orderDate)}
             onPress={sendOrder}
           />
 
@@ -1158,6 +1863,7 @@ function updateFullMenu(category, newItems) {
             }
           />
         </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     );
   }
@@ -1166,14 +1872,26 @@ function updateFullMenu(category, newItems) {
     <SafeAreaView style={styles.page}>
       <StatusBar style="dark" />
 
-      <ScrollView
+      <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+        <ScrollView
+          ref={messageScrollRef}
+          keyboardShouldPersistTaps="handled"
         contentContainerStyle={
           styles.content
         }
       >
         <Header onAdminOpen={() => setShowAdminLogin(true)} />
-        {admin && <AdminOrderSound soundRef={orderSound} />}
+          <ClosedDaysNotice {...closedDays} styles={styles} />
+        {admin && <AdminOrderSound soundRef={orderSound}
+          ringing={orders.some(order => (order.status || 'Ny') === 'Ny'
+            && seenOrdersAtLogin.current !== null && !seenOrdersAtLogin.current.has(String(order.id)))
+            || bookings.some(booking => booking.admin_seen !== true
+              && seenBookingsAtLogin.current !== null && !seenBookingsAtLogin.current.has(String(booking.id)))} />}
 
+        {!admin && (<>
         <View style={styles.hero}>
           <Image source={{ uri: foodImages.Lunch }} style={styles.heroImage} />
           <View style={styles.heroOverlay}>
@@ -1197,6 +1915,8 @@ function updateFullMenu(category, newItems) {
         </View>
 
 
+
+
 <View style={{
   flexDirection: 'row',
   flexWrap: 'wrap',
@@ -1212,7 +1932,7 @@ function updateFullMenu(category, newItems) {
         marginBottom: 12,
         borderRadius: 14,
         overflow: 'hidden',
-        backgroundColor: '#0755ad',
+        backgroundColor: '#142b45',
       }}
     >
       <Image
@@ -1225,14 +1945,14 @@ function updateFullMenu(category, newItems) {
       />
 
       <View style={{
-        backgroundColor: '#0755ad',
+        backgroundColor: '#142b45',
         minHeight: 48,
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: 4,
       }}>
         <Text style={{
-          color: GOLD,
+          color: '#d6b46b',
           fontSize: 16,
           fontWeight: '800',
           textAlign: 'center',
@@ -1249,6 +1969,7 @@ function updateFullMenu(category, newItems) {
             <Text style={styles.heading}>
               Veckans lunchmeny
             </Text>
+            <Text style={styles.muted}>Välj lunchdag för att reservera maten. Datumet blir automatiskt närmaste valda vardag.</Text>
 
             <View style={styles.days}>
               {Object.keys(
@@ -1277,40 +1998,6 @@ day === item && styles.dayActive,
               ))}
             </View>
 
-            <Text style={styles.label}>
-              Välj:
-            </Text>
-
-            <View style={styles.types}>
-              {ORDER_TYPES.map(
-                ([name, price]) => (
-                  <TouchableOpacity
-                    key={name}
-                    onPress={() =>
-                      selectOrderType(name)
-                    }
-                    style={[
-                      styles.type,
-                      orderType === name &&
-                        styles.typeActive,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.typeText,
-                        orderType === name &&
-                          styles.typeTextActive,
-                      ]}
-                    >
-                      {name}
-                      {'\n'}
-                      {price} kr
-                    </Text>
-                  </TouchableOpacity>
-                )
-              )}
-            </View>
-
           {(weeklyLunch[day] || []).map(
               (name, index) => (
                 <Food
@@ -1318,20 +2005,7 @@ day === item && styles.dayActive,
                   number={index + 1}
                   name={name}
                   price={lunchPrice}
-onAdd={() => {
-  const days = ['Söndag', 'Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag'];
-  const today = days[new Date().getDay()];
-
-  if (day !== today || !['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag'].includes(today)) {
-    Alert.alert(
-      'Veckans meny',
-      'Du kan titta på andra dagars lunch, men bara beställa dagens lunch.'
-    );
-    return;
-  }
-
-  addToCart(name, 139, 'Lunch');
-}}
+                  onAdd={() => addToCart(name, 139, 'Lunch', day)}
                 />
               )
             )}
@@ -1354,7 +2028,10 @@ onAdd={() => {
     style={styles.sectionImage}
   />
 )}
-            {fullMenu[section].map(
+            {section === FROZEN_CATEGORY ? (
+              <FrozenMealPicker inventory={frozenInventory} cart={cart} dishes={fullMenu[FROZEN_CATEGORY]} onAdd={addFrozenBundle}
+                available={menuAvailable} styles={styles} Button={AppButton} />
+            ) : fullMenu[section].map(
               ([name, price]) => (
                 <Food
                   key={name}
@@ -1414,7 +2091,7 @@ onAdd={() => {
         minimumDate={new Date()}
         onChange={(_, selected) => {
           setShowBookingDatePicker(false);
-          if (selected) setBookingDate(formatDate(selected));
+          if (selected) selectAvailableDate(selected, setBookingDate);
         }}
       />
     )}
@@ -1438,7 +2115,13 @@ onAdd={() => {
 
 <Text style={styles.label}>Meddelande</Text>
 <TextInput
-  style={styles.messageInput}
+  ref={messageInputRef}
+            onFocus={() => {
+              messageFocused.current = true;
+              revealMessageInput();
+            }}
+            onBlur={() => { messageFocused.current = false; }}
+            style={styles.messageInput}
   multiline
   value={bookingMessage}
   onChangeText={setBookingMessage}
@@ -1447,6 +2130,7 @@ onAdd={() => {
 
 <AppButton
   title="Skicka bokningsförfrågan"
+  disabled={!!closureForDate(closedDays.closures, bookingDate)}
   onPress={() => bookTable('event')}
 />
 </>
@@ -1494,7 +2178,7 @@ onAdd={() => {
                 minimumDate={new Date()}
                 onChange={(_, selected) => {
                   setShowBookingDatePicker(false);
-                  if (selected) setBookingDate(formatDate(selected));
+                  if (selected) selectAvailableDate(selected, setBookingDate);
                 }}
               />
             )}
@@ -1539,7 +2223,13 @@ onAdd={() => {
             </Text>
 
             <TextInput
-              style={styles.messageInput}
+              ref={messageInputRef}
+            onFocus={() => {
+              messageFocused.current = true;
+              revealMessageInput();
+            }}
+            onBlur={() => { messageFocused.current = false; }}
+            style={styles.messageInput}
               multiline
               value={bookingMessage}
               onChangeText={
@@ -1550,11 +2240,50 @@ onAdd={() => {
 
             <AppButton
               title="Skicka bokning"
+              disabled={!!closureForDate(closedDays.closures, bookingDate)}
               onPress={() => bookTable('table')}
             />
           </>
         )}
 
+        {!admin && (
+          <View style={styles.info} onLayout={event => {
+            offerListPosition.current = event.nativeEvent.layout.y;
+            if (offerListScrollPending.current) {
+              offerListScrollPending.current = false;
+              messageScrollRef.current?.scrollTo({ y: offerListPosition.current, animated: true });
+            }
+          }}>
+            <Text style={styles.label}>Erbjudanden från Husman</Text>
+            {customerOffersLoading && customerOffers.length === 0 && (
+              <Text style={styles.muted}>Hämtar erbjudanden...</Text>
+            )}
+            {!!customerOffersError && (<>
+              <Text style={styles.orderDetail}>{customerOffersError}</Text>
+              <AppButton title="Försök igen" outline
+                onPress={() => setCustomerOffersRevision(value => value + 1)} />
+            </>)}
+            {!customerOffersLoading && !customerOffersError && customerOffers.length === 0 && (
+              <Text style={styles.muted}>Inga aktuella erbjudanden.</Text>
+            )}
+            {customerOffers.map(offer => (
+              <View key={offer.id} style={[styles.orderCard, { marginTop: 14, padding: 18 }]}>
+                <Text style={[styles.foodOrderTitle, { fontWeight: '800', color: '#102b49' }]}>{offer.title}</Text>
+                <Text style={styles.muted}>Publicerat {new Date(offer.created_at).toLocaleDateString('sv-SE')}</Text>
+                <Text style={[styles.orderDetail, { marginTop: 12 }]}>{offer.body}</Text>
+              </View>
+            ))}
+            <Text style={styles.muted}>
+              Få erbjudanden via appnotiser. Det är frivilligt och du kan stänga av dem här när du vill.
+              {offerEnabled === true ? ' Du har tackat ja.' : ''}
+            </Text>
+            <AppButton
+              title={offerPreferenceBusy ? 'Sparar...' : offerEnabled === true ? 'Stäng av erbjudanden' : 'Ja, jag vill få erbjudanden'}
+              outline disabled={offerPreferenceBusy}
+              onPress={() => changeOfferPreference(offerEnabled !== true)}
+            />
+          </View>
+        )}
         <AppButton
           title={`Kundkorg (${cart.reduce(
             (sum, item) =>
@@ -1565,9 +2294,10 @@ onAdd={() => {
             setShowCart(true)
           }
         />
+        </>)}
 
         {(showAdminLogin || admin) && (
-        <View style={styles.adminBox}>
+        <View style={[styles.adminBox, admin && styles.adminDashboard]}>
           <Text style={styles.adminTitle}>
             Restaurang / Admin
           </Text>
@@ -1581,7 +2311,7 @@ onAdd={() => {
                 value={ownerCode}
                 onChangeText={setOwnerCode}
                 placeholder="Ägarkod"
-                maxLength={4}
+                maxLength={12}
               />
 
               <TextInput
@@ -1608,156 +2338,92 @@ onAdd={() => {
               <Text style={styles.success}>
                 ✓ Inloggad som admin
               </Text>
+              <View style={styles.orderSummary}>
+                <Text style={styles.orderSummaryTitle}>Matbeställningar</Text>
+                <Text style={styles.orderSummaryCount}>{orders.filter(order => (order.status || 'Ny') === 'Ny').length} nya</Text>
+                <Text style={styles.orderDetail}>Beställningarna visas nedan. Acceptera när du har sett dem.</Text>
+              </View>
+              <AppButton title={showAdminSettings ? 'Stäng inställningar' : 'Inställningar • Meny, priser och stängda dagar'}
+                outline onPress={() => {
+                  setShowAdminSettings(value => !value);
+                  messageScrollRef.current?.scrollTo({ y: 0, animated: true });
+                }} />
 
-              <AppButton
-                title="Uppdatera beställningar"
-                onPress={() => {
-                  loadOrders();
-                  loadBookings();
-                }}
-              />
 
+              {showAdminSettings && (
+                <View style={styles.settingsBox}>
+                  <ClosedDaysAdmin client={supabase} closures={closedDays.closures}
+                    refresh={closedDays.refresh} styles={styles} Button={AppButton} />
+                  <Text style={styles.adminTitle}>Inställningar</Text>
+                  <Text style={styles.muted}>Ändra meny, lägg till maträtter, ändra priser och hantera erbjudanden.</Text>
               <AppButton title="Testa orderljud" outline onPress={testOrderSound} />
-              <Text
-                style={
-                  styles.adminHeading
-                }
-              >
-                Inkommande beställningar
-              </Text>
-
-              {orders.length === 0 && (
-                <Text
-                  style={styles.muted}
-                >
-                  Inga beställningar att
-                  visa.
-                </Text>
-              )}
-
-              {orders.map((order) => (
-                <View
-                  key={order.id}
-                  style={styles.orderCard}
-                >
-                  <Text
-                    style={
-                      styles.orderTitle
-                    }
-                  >
-                    Beställning #
-                    {order.id}
-                  </Text>
-
-                  <Text
-                    style={styles.muted}
-                  >
-                    Status:{' '}
-                    {order.status ||
-                      'Ny'}
-                  </Text>
-
-                  {!!order.pickup_date && (
-                    <Text>
-                      Datum:{' '}
-                      {order.pickup_date}
-                    </Text>
-                  )}
-
-                  {!!order.pickup_time && (
-                    <Text>
-                      Tid:{' '}
-                      {order.pickup_time}
-                    </Text>
-                  )}
-
-                  {!!order.order_type && (
-                    <Text>
-                      Typ:{' '}
-                      {order.order_type}
-                    </Text>
-                  )}
-
-                  {Array.isArray(
-                    order.items
-                  ) &&
-                    order.items.map(
-                      (item, index) => (
-                        <Text
-                          key={`${order.id}-${index}`}
-                        >
-                          • {item.qty} ×{' '}
-                          {item.name}
-                          {!!item.note?.trim() && ` — ${item.note.trim()}`}
-                        </Text>
-                      )
-                    )}
-
-                  {!!order.message && (
-                    <Text
-                      style={
-                        styles.orderMessage
-                      }
-                    >
-                      Meddelande:{' '}
-                      {order.message}
-                    </Text>
-                  )}
-
-                  <Text
-                    style={
-                      styles.orderTotal
-                    }
-                  >
-                    Totalt:{' '}
-                    {order.total || 0} kr
-                  </Text>
-
-                  {order.status !==
-                    'Maten färdig' && (
-                    <AppButton
-                      title="Maten färdig"
-                      onPress={() =>
-                        foodReady(order)
-                      }
-                    />
-                  )}
-                  {order.status === 'Maten färdig' && (
-                    <AppButton title="Skicka SMS • Maten färdig" outline
-                      onPress={() => openCustomerSms(order.phone, readyMessage(order))} />
-                  )}
-                  {order.status === 'Maten färdig' && (
-                    <AppButton
-                      title="Radera beställning"
-                      outline
-                      onPress={() => confirmDeleteOrder(order)}
-                    />
-                  )}
+              {!!ownerPushStatus && <Text style={styles.muted}>{ownerPushStatus}</Text>}
+              <AppButton title="Testa ägarnotis" outline onPress={testOwnerNotification} />
+              <AppButton title="Stäng av ägarnotiser på denna mobil" outline onPress={disableOwnerNotifications} />
+              <AppButton title="Ändra lunchpriser" outline onPress={() => {
+                setPriceDraft(ORDER_TYPES.map(([, price]) => String(price)));
+                setEditLunchPrices(true);
+              }} />
+              {editLunchPrices && (
+                <View style={styles.orderCard}>
+                  <Text style={styles.adminHeading}>Lunchpriser</Text>
+                  {ORDER_TYPES.map(([name], index) => (
+                    <View key={name}>
+                      <Text style={styles.muted}>{name} (kr)</Text>
+                      <TextInput style={styles.field} keyboardType="decimal-pad"
+                        value={priceDraft[index]} editable={!savingPrices}
+                        onChangeText={value => setPriceDraft(current =>
+                          current.map((price, position) => position === index ? value : price))} />
+                    </View>
+                  ))}
+                  <AppButton title={savingPrices ? 'Sparar…' : 'Spara lunchpriser'}
+                    onPress={saveLunchPrices} />
+                  {!savingPrices && <AppButton title="Avbryt" outline
+                    onPress={() => setEditLunchPrices(false)} />}
                 </View>
-              ))}
-
-              <Text style={styles.adminHeading}>Bordsbokningar</Text>
-
-              {bookings.length === 0 && (
-                <Text style={styles.muted}>Inga bokningar att visa.</Text>
               )}
-
-              {bookings.map((booking) => (
-                <View key={booking.id} style={styles.orderCard}>
-                  <Text style={styles.orderTitle}>
-                    {booking.booking_date} kl. {booking.booking_time}
+              <AppButton title="Hantera erbjudanden" outline onPress={() => {
+                setShowOfferEditor(value => !value);
+                if (!showOfferEditor) refreshOfferAudience();
+              }} />
+              {showOfferEditor && (
+                <View style={styles.orderCard}>
+                  <Text style={styles.adminHeading}>Erbjudande via appnotis</Text>
+                  <Text style={styles.muted}>
+                    {offerAudience === null ? 'Hämta antalet mottagare.' : `${offerAudience} kunder har tackat ja.`}
                   </Text>
-                  <Text>{booking.guests || 2} personer</Text>
-                  <AppButton
-                    title={String(booking.message || '').includes('Catering och festlokal') ? 'Återkom med pris • SMS' : 'Bekräfta bord • SMS'}
-                    onPress={() => bookingReply(booking)}
-                  />
-                  {!!booking.message && (
-                    <Text style={styles.orderMessage}>{booking.message}</Text>
+                  <AppButton title="Uppdatera antal mottagare" outline onPress={refreshOfferAudience} />
+                  <Text style={styles.label}>Rubrik</Text>
+                  <TextInput style={styles.field} value={offerTitle} maxLength={80} editable={!offerSending}
+                    onChangeText={text => { setOfferTitle(text); offerCampaignId.current = null; }}
+                    placeholder="Rubrik för erbjudandet" />
+                  <Text style={styles.label}>Erbjudande</Text>
+                  <TextInput style={styles.messageInput} value={offerBody} maxLength={500} multiline
+                    editable={!offerSending} onChangeText={text => { setOfferBody(text); offerCampaignId.current = null; }}
+                    placeholder="Skriv ditt erbjudande" />
+                  <AppButton title={offerSending ? 'Skickar...' : 'Granska och skicka erbjudande'}
+                    disabled={offerSending} onPress={confirmOffer} />
+                  <Text style={styles.adminHeading}>Publicerade erbjudanden</Text>
+                  <Text style={styles.muted}>Erbjudanden visas tills du raderar dem. Då försvinner de från kundernas lista och din adminlista.</Text>
+                  <AppButton title={ownerOffersLoading ? 'Hämtar...' : 'Uppdatera erbjudanden'}
+                    outline disabled={ownerOffersLoading || changingOfferId !== null}
+                    onPress={() => setOwnerOffersRevision(value => value + 1)} />
+                  {!!ownerOffersError && <Text style={styles.orderDetail}>{ownerOffersError}</Text>}
+                  {!ownerOffersLoading && !ownerOffersError && !ownerOffers.some(offer => !offer.hidden_at) && (
+                    <Text style={styles.muted}>Inga erbjudanden att visa.</Text>
                   )}
+                  {ownerOffers.filter(offer => !offer.hidden_at).map(offer => (
+                    <View key={offer.id} style={[styles.orderCard, { marginTop: 14 }]}>
+                      <Text style={styles.orderTitle}>{offer.title}</Text>
+                      <Text style={styles.orderDetail}>{offer.body}</Text>
+                      <Text style={styles.muted}>Syns hos kunder</Text>
+                      <AppButton title={changingOfferId === offer.id ? 'Sparar...' : 'Radera erbjudande'}
+                        outline disabled={changingOfferId !== null || offerSending}
+                        onPress={() => confirmRemoveOffer(offer)} />
+                    </View>
+                  ))}
                 </View>
-              ))}
-
+              )}
               <Text
                 style={
                   styles.adminHeading
@@ -1777,7 +2443,7 @@ onAdd={() => {
   <View style={{ flex: 1 }}>
     <AppButton
       title="➕ Lägg till maträtt"
-      onPress={() => setAdminMenuMode('add')}
+      onPress={() => { setNewDishCategory('Lunch'); setAdminMenuMode('add'); }}
     />
   </View>
 </View>
@@ -1786,7 +2452,7 @@ onAdd={() => {
     <Text style={styles.label}>Kategori för ny maträtt</Text>
     <View style={styles.days}>
       {categories.filter((category) =>
-        category !== 'Boka bord' && category !== 'Catering & Festlokal'
+        category !== 'Boka bord' && category !== 'Catering & Festlokal' && category !== FROZEN_CATEGORY
       ).map((category) => (
         <TouchableOpacity
           key={category}
@@ -1800,7 +2466,19 @@ onAdd={() => {
       ))}
     </View>
     {newDishCategory === 'Lunch' && (
-      <Text style={styles.muted}>Läggs till på {editDay} i veckomenyn.</Text>
+      <>
+        <Text style={styles.label}>Välj dag för den nya lunchrätten</Text>
+        <View style={styles.days}>
+          {Object.keys(DEFAULT_LUNCH).map(day => (
+            <TouchableOpacity key={`add-lunch-${day}`} disabled={savingNewDish}
+              onPress={() => openDayForEditing(day)}
+              style={[styles.day, editDay === day && styles.dayActive]}>
+              <Text style={[styles.dayText, editDay === day && styles.dayTextActive]}>{day}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <Text style={styles.muted}>Läggs till på {editDay}. Lunchpriserna används automatiskt.</Text>
+      </>
     )}
     <TextInput
       style={styles.field}
@@ -1809,6 +2487,7 @@ onAdd={() => {
       placeholder="Ny maträtt"
     />
 
+    {newDishCategory !== 'Lunch' && (
     <TextInput
       style={styles.field}
       value={newDishPrice}
@@ -1816,9 +2495,10 @@ onAdd={() => {
       keyboardType="number-pad"
       placeholder="Pris"
     />
+    )}
 
     <AppButton
-      title="Spara ny maträtt"
+      title={savingNewDish ? 'Sparar…' : 'Spara ny maträtt'}
       onPress={addNewDish}
     />
   </>
@@ -1840,11 +2520,14 @@ onAdd={() => {
   </>
 )}
 
-{fullMenu[section] && section !== 'Lunch' && (
+{section === FROZEN_CATEGORY && (
+  <FrozenMenuEditor inventory={frozenInventory} dishes={fullMenu[FROZEN_CATEGORY]} onSave={saveFrozenMenu} styles={styles} Button={AppButton} />
+)}
+{fullMenu[section] && section !== 'Lunch' && section !== FROZEN_CATEGORY && (
   <Text style={styles.adminHeading}>
     Redigerar: {section}
   </Text>
-)} {fullMenu[section] && section !== 'Lunch' &&
+)} {fullMenu[section] && section !== 'Lunch' && section !== FROZEN_CATEGORY &&
   (fullMenu[section] || []).map((food, index) => (
     <View key={`${section}-${index}`}>
       <TextInput
@@ -1869,7 +2552,7 @@ onAdd={() => {
       />
     </View>
   ))
-}{fullMenu[section] && section !== 'Lunch' && (
+}{fullMenu[section] && section !== 'Lunch' && section !== FROZEN_CATEGORY && (
   <AppButton
     title="Spara ändringar"
     onPress={() => saveFullMenu(section)}
@@ -1954,7 +2637,181 @@ onAdd={() => {
                   saveMenuChanges
                      }
 />
-                
+                                  <AppButton title="Stäng inställningar" outline onPress={() => {
+                    setShowAdminSettings(false);
+                    messageScrollRef.current?.scrollTo({ y: 0, animated: true });
+                  }} />
+                </View>
+              )}
+              {!showAdminSettings && (<>
+              <AppButton
+                title="Uppdatera beställningar"
+                onPress={() => {
+                  loadOrders();
+                  loadBookings();
+                }}
+              />
+
+
+              <Text
+                style={
+                  styles.adminHeading
+                }
+              >
+                Inkommande beställningar
+              </Text>
+
+              {orders.length === 0 && (
+                <Text
+                  style={styles.muted}
+                >
+                  Inga beställningar att
+                  visa.
+                </Text>
+              )}
+
+              {[...orders].sort((a, b) => {
+                const rank = order => (order.status || 'Ny') === 'Ny' ? 0 : order.status === 'Maten färdig' ? 2 : 1;
+                return rank(a) - rank(b);
+              }).map((order) => (
+                <View
+                  key={order.id}
+                  style={[styles.orderCard, styles.foodOrderCard, (order.status || 'Ny') === 'Ny' && styles.newFoodOrderCard]}
+                >
+                  <Text
+                    style={
+                      [styles.orderTitle, styles.foodOrderTitle]
+                    }
+                  >
+                    Beställning #
+                    {order.id}
+                  </Text>
+
+                  <Text
+                    style={styles.orderStatus}
+                  >
+                    Status:{' '}
+                    {order.status ||
+                      'Ny'}
+                  </Text>
+
+                  {!!order.customer_name && <Text style={styles.orderDetail}>{order.customer_name}</Text>}
+                  {!!order.phone && <Text style={styles.orderDetail}>Telefon: {order.phone}</Text>}
+                  {!!order.pickup_date && (
+                    <Text style={styles.orderDetail}>
+                      Datum:{' '}
+                      {order.pickup_date}
+                    </Text>
+                  )}
+
+                  {!!order.pickup_time && (
+                    <Text style={styles.orderDetail}>
+                      Tid:{' '}
+                      {order.pickup_time}
+                    </Text>
+                  )}
+
+                  {!!order.order_type && (
+                    <Text style={styles.orderDetail}>
+                      Typ:{' '}
+                      {order.order_type}
+                    </Text>
+                  )}
+
+                  {Array.isArray(
+                    order.items
+                  ) &&
+                    order.items.map(
+                      (item, index) => (
+                        <Text
+                          key={`${order.id}-${index}`}
+                          style={styles.orderDish}
+                        >
+                          • {item.qty} ×{' '}
+                          {item.name}
+                          {!!item.note?.trim() && ` — ${item.note.trim()}`}
+                        </Text>
+                      )
+                    )}
+
+                  {!!order.message && (
+                    <Text
+                      style={
+                        [styles.orderMessage, styles.orderDetail]
+                      }
+                    >
+                      Meddelande:{' '}
+                      {order.message}
+                    </Text>
+                  )}
+
+                  <Text
+                    style={
+                      [styles.orderTotal, styles.foodOrderTotal]
+                    }
+                  >
+                    Totalt:{' '}
+                    {order.total || 0} kr
+                  </Text>
+
+                  {(order.status || 'Ny') === 'Ny' && (
+                    <AppButton title="Acceptera beställning"
+                      onPress={() => acceptOrder(order)} />
+                  )}
+                  {order.status !==
+                    'Maten färdig' && (
+                    <AppButton
+                      title="Maten färdig"
+                      onPress={() =>
+                        foodReady(order)
+                      }
+                    />
+                  )}
+                  {order.status === 'Maten färdig' && (
+                    <AppButton title="Skicka SMS • Maten färdig" outline
+                      onPress={() => openCustomerSms(order.phone, readyMessage(order))} />
+                  )}
+                  {order.status === 'Maten färdig' && (
+                    <AppButton
+                      title="Radera beställning"
+                      outline
+                      onPress={() => confirmDeleteOrder(order)}
+                    />
+                  )}
+                </View>
+              ))}
+
+              <Text style={styles.adminHeading}>Bordsbokningar</Text>
+
+              {bookings.length === 0 && (
+                <Text style={styles.muted}>Inga bokningar att visa.</Text>
+              )}
+
+              {bookings.map((booking) => (
+                <View key={booking.id} style={styles.orderCard}>
+                  <Text style={styles.orderTitle}>
+                    {booking.booking_date} kl. {booking.booking_time}
+                  </Text>
+                  <Text>{booking.guests || 2} personer</Text>
+                  {booking.admin_seen !== true ? (
+                    <AppButton title="Bokning sedd • Stoppa ljud"
+                      onPress={() => acknowledgeBooking(booking)} />
+                  ) : <Text style={styles.success}>✓ Bokningen är sedd</Text>}
+
+                  <AppButton
+                    title={String(booking.message || '').includes('Catering och festlokal') ? 'Återkom med pris • SMS' : 'Bekräfta bord • SMS'}
+                    onPress={() => bookingReply(booking)}
+                  />
+                  <AppButton title="Radera bokning" outline
+                    onPress={() => confirmDeleteBooking(booking)} />
+                  {!!booking.message && (
+                    <Text style={styles.orderMessage}>{booking.message}</Text>
+                  )}
+                </View>
+              ))}
+
+
+              </>)}
               <AppButton
                 title="Logga ut"
                 outline
@@ -1965,6 +2822,7 @@ onAdd={() => {
         </View>
         )}
       </ScrollView>
+        </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -2034,14 +2892,17 @@ function AppButton({
   title,
   onPress,
   outline,
+  disabled = false,
 }) {
   return (
     <TouchableOpacity
       onPress={onPress}
+      disabled={disabled}
       style={[
         styles.button,
         outline &&
           styles.buttonOutline,
+        disabled && { opacity: 0.5 },
       ]}
     >
       <Text
@@ -2057,8 +2918,8 @@ function AppButton({
   );
 }
 
-const BLUE = '#0865bd';
-const GOLD = '#bd8b38';
+const BLUE = '#142b45';
+const GOLD = '#d6b46b';
 
 const styles = StyleSheet.create({
   brandRow: { width: '100%', flexDirection: 'row', alignItems: 'center', marginBottom: 9 },
@@ -2068,6 +2929,7 @@ const styles = StyleSheet.create({
   swedishFlag: { width: 70, height: 38, maxWidth: '100%', backgroundColor: '#143f65', borderRadius: 6, overflow: 'hidden' },
   flagHorizontal: { position: 'absolute', top: '40%', left: 0, right: 0, height: '20%', backgroundColor: GOLD },
   flagVertical: { position: 'absolute', top: 0, bottom: 0, left: '32%', width: '13%', backgroundColor: GOLD },
+
   page: {
     flex: 1,
     backgroundColor: '#f5f9ff',
@@ -2176,13 +3038,13 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#d2e2f1',
+    borderColor: GOLD,
     marginRight: 8,
   },
 
   tabActive: {
     backgroundColor: BLUE,
-    borderColor: BLUE,
+    borderColor: GOLD,
   },
 
   tabText: {
@@ -2191,7 +3053,7 @@ const styles = StyleSheet.create({
   },
 
   tabTextActive: {
-    color: '#ffffff',
+    color: GOLD,
   },
 
   days: {
@@ -2206,13 +3068,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#d5e4f2',
+    borderColor: GOLD,
     marginRight: 7,
     marginBottom: 7,
   },
 
   dayActive: {
-    backgroundColor: '#163e68',
+    backgroundColor: '#142b45',
   },
 
   dayText: {
@@ -2221,7 +3083,7 @@ const styles = StyleSheet.create({
   },
 
   dayTextActive: {
-    color: '#ffffff',
+    color: GOLD,
   },
 
   types: {
@@ -2235,13 +3097,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#bdd5eb',
+    borderColor: GOLD,
     marginRight: 6,
   },
 
   typeActive: {
     backgroundColor: BLUE,
-    borderColor: BLUE,
+    borderColor: GOLD,
   },
 
   typeText: {
@@ -2252,7 +3114,7 @@ const styles = StyleSheet.create({
   },
 
   typeTextActive: {
-    color: '#ffffff',
+    color: GOLD,
   },
 
   card: {
@@ -2263,7 +3125,7 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 9,
     borderWidth: 1,
-    borderColor: '#e0eaf4',
+    borderColor: GOLD,
   },
 
   item: {
@@ -2300,11 +3162,11 @@ const styles = StyleSheet.create({
   buttonOutline: {
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: BLUE,
+    borderColor: GOLD,
   },
 
   buttonText: {
-    color: '#ffffff',
+    color: GOLD,
     fontSize: 16,
     fontWeight: '900',
     textAlign: 'center',
@@ -2361,7 +3223,7 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#cbdceb',
+    borderColor: GOLD,
     borderRadius: 13,
     padding: 13,
     fontSize: 16,
@@ -2371,7 +3233,7 @@ const styles = StyleSheet.create({
   field: {
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#cbdceb',
+    borderColor: GOLD,
     borderRadius: 12,
     padding: 13,
     fontSize: 16,
@@ -2381,7 +3243,7 @@ const styles = StyleSheet.create({
   pickerButton: {
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#cbdceb',
+    borderColor: GOLD,
     borderRadius: 12,
     padding: 15,
     marginBottom: 9,
@@ -2400,11 +3262,11 @@ const styles = StyleSheet.create({
 
   timeButtonActive: {
     backgroundColor: BLUE,
-    borderColor: BLUE,
+    borderColor: GOLD,
   },
 
   timeButtonTextActive: {
-    color: '#ffffff',
+    color: GOLD,
     fontSize: 16,
     fontWeight: '700',
   },
@@ -2421,7 +3283,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: '#eef5fc',
     borderWidth: 1,
-    borderColor: '#d4e3f1',
+    borderColor: GOLD,
   },
 
   adminTitle: {
@@ -2445,10 +3307,22 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
 
+  adminDashboard: { marginTop: 0, padding: 12 },
+  settingsBox: { padding: 14, marginTop: 20, borderRadius: 16, backgroundColor: '#e5f1ff' },
+  orderSummary: { padding: 18, borderRadius: 16, backgroundColor: '#d9ecff', marginBottom: 8 },
+  orderSummaryTitle: { fontSize: 25, fontWeight: '900', color: '#102b49' },
+  orderSummaryCount: { fontSize: 32, fontWeight: '900', color: BLUE, marginVertical: 6 },
+  foodOrderTitle: { fontSize: 24 },
+  foodOrderTotal: { fontSize: 22 },
+  foodOrderCard: { padding: 20, borderWidth: 2, marginBottom: 18 },
+  newFoodOrderCard: { borderColor: GOLD, backgroundColor: '#eaf5ff' },
+  orderStatus: { fontSize: 20, fontWeight: '900', color: BLUE, marginBottom: 10 },
+  orderDetail: { fontSize: 18, lineHeight: 26, color: '#102b49', marginBottom: 4 },
+  orderDish: { fontSize: 20, lineHeight: 28, fontWeight: '800', color: '#102b49', marginTop: 10 },
   orderCard: {
     backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#d5e4f2',
+    borderColor: GOLD,
     borderRadius: 14,
     padding: 13,
     marginBottom: 12,
@@ -2479,3 +3353,5 @@ const styles = StyleSheet.create({
 
 
               
+
+

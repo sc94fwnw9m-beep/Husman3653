@@ -1,0 +1,11 @@
+name: Diagnose iOS build 90 startup
+
+jobs:
+  diagnostic_ios:
+    name: Publish local startup diagnostics for runtime 1.0.9
+    type: update
+    environment: production
+    params:
+      platform: ios
+      channel: production
+      message: Temporary startup diagnostics for iOS runtime 1.0.9 build 90

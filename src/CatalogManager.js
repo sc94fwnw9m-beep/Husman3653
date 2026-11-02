@@ -19,8 +19,6 @@ export function decodeBase64(value) {
 
 export default function CatalogManager({ supabase, categories, images, onSaved, styles }) {
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
 
   async function run(action) {
@@ -33,7 +31,7 @@ export default function CatalogManager({ supabase, categories, images, onSaved, 
 
   async function requireOwner() {
     const { data, error } = await supabase.from('catalog_owners').select('user_id').limit(1);
-    if (error || !data?.length) throw new Error('Logga in med ägarens e-post och lösenord för att ändra bilder och kategorier.');
+    if (error || !data?.length) throw new Error('Logga in som ägare för att ändra bilder och kategorier.');
   }
 
   async function chooseImage(category) {
@@ -62,14 +60,7 @@ export default function CatalogManager({ supabase, categories, images, onSaved, 
 
   return <View>
     <Text style={styles.adminHeading}>Bilder och matkategorier</Text>
-    <Text style={styles.muted}>Logga in som ägare för att spara ändringar som alla kunder ser.</Text>
-    <TextInput style={styles.field} accessibilityLabel="Ägarens e-post" placeholder="Ägarens e-post" autoCapitalize="none" keyboardType="email-address" value={email} onChangeText={setEmail} />
-    <TextInput style={styles.field} accessibilityLabel="Ägarens lösenord" placeholder="Lösenord" secureTextEntry value={password} onChangeText={setPassword} />
-    <Button title="Logga in för bildändringar" disabled={busy} onPress={() => run(async () => {
-      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-      if (error) throw new Error('Fel e-post eller lösenord.');
-      setPassword(''); await requireOwner(); Alert.alert('Inloggad', 'Du kan nu ändra bilder och lägga till matkategorier.');
-    })} />
+    <Text style={styles.muted}>Välj bilder från mobilen eller lägg till en matkategori. Ändringarna sparas för alla kunder.</Text>
     {categories.map(category => <View key={category} style={{ marginVertical: 10 }}>
       <Text style={styles.label}>{category}</Text>
       {!!images[category] && <Image source={typeof images[category] === 'string' ? { uri: images[category] } : images[category]} style={styles.sectionImage} />}

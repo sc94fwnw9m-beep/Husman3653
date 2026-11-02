@@ -27,7 +27,11 @@
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false
         },
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleDevelopmentRegion": "sv",
+        "CFBundleLocalizations": [
+          "sv"
+        ]
       }
     },
     "android": {
@@ -48,6 +52,16 @@
     "updates": {
       "url": "https://u.expo.dev/d2f4d05f-9222-4f0a-8408-22acea729cc9",
       "checkAutomatically": "ON_LOAD"
-    }
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Välj matbilder till Husman Lunchrestaurang.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ]
+    ]
   }
 }

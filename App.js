@@ -14,6 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import CatalogManager from './src/CatalogManager';
 import { StatusBar } from 'expo-status-bar';
 import { createClient } from '@supabase/supabase-js';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -145,7 +146,7 @@ const FOOD_IMAGES = {
   Sallader: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=900&q=82',
   'Veganska maträtter': 'https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=900&q=82',
   Frukost: 'https://images.unsplash.com/photo-1533089860892-a7c6f0a88666?auto=format&fit=crop&w=900&q=82',
-  'Frysta matlådor': 'https://images.unsplash.com/photo-1543353071-087092ec393a?auto=format&fit=crop&w=900&q=82',
+  'Frysta matlådor': require('./assets/frozen-meals.jpg'),
 Tips: 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=900&q=82',
 'Catering & Festlokal': require('./assets/IMG_7712.png'),
   'Boka bord': 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=900&q=82',
@@ -216,6 +217,21 @@ export default function App() {
   const [weeklyLunch, setWeeklyLunch] =
     useState(DEFAULT_LUNCH);
 const [fullMenu, setFullMenu] = useState(MENU);
+const [catalogRows, setCatalogRows] = useState([]);
+const categories = [...CATEGORIES, ...catalogRows.map(row => row.name).filter(name => !CATEGORIES.includes(name))];
+const foodImages = { ...Object.fromEntries(categories.map(name => [name, FOOD_IMAGES.Lunch])), ...FOOD_IMAGES, ...Object.fromEntries(catalogRows.filter(row => row.image_url).map(row => [row.name, row.image_url])) };
+async function loadCatalog() {
+  const { data, error } = await supabase.from('menu_categories').select('name,image_url').order('created_at');
+  if (error) return;
+  setCatalogRows(data || []);
+  setFullMenu(old => ({ ...Object.fromEntries((data || []).filter(row => !CATEGORIES.includes(row.name)).map(row => [row.name, []])), ...old }));
+}
+useEffect(() => {
+  loadCatalog();
+  const timer = setInterval(() => { if (AppState.currentState === 'active') loadCatalog(); }, 30000);
+  const foreground = AppState.addEventListener('change', state => { if (state === 'active') loadCatalog(); });
+  return () => { clearInterval(timer); foreground.remove(); };
+}, []);
   const [orderType, setOrderType] =
     useState('Äta här');
 
@@ -376,7 +392,7 @@ async function loadPublishedMenu() {
         seenDays.add(row.day);
       }
       if (row.active !== false && row.name) lunch[row.day].push(row.name);
-    } else if (Object.prototype.hasOwnProperty.call(MENU, row.category)) {
+    } else if (row.category && row.category !== 'Lunch') {
       if (!seenCategories.has(row.category)) {
         full[row.category] = [];
         seenCategories.add(row.category);
@@ -388,7 +404,7 @@ async function loadPublishedMenu() {
   }
 
   setWeeklyLunch(lunch);
-  setFullMenu(full);
+  setFullMenu(old => ({ ...Object.fromEntries(Object.keys(old).map(name => [name, []])), ...full }));
  }
 
  async function publishMenuSection(category, day, items) {
@@ -1159,7 +1175,7 @@ function updateFullMenu(category, newItems) {
         {admin && <AdminOrderSound soundRef={orderSound} />}
 
         <View style={styles.hero}>
-          <Image source={{ uri: FOOD_IMAGES.Lunch }} style={styles.heroImage} />
+          <Image source={{ uri: foodImages.Lunch }} style={styles.heroImage} />
           <View style={styles.heroOverlay}>
             <Text style={styles.heroTitle}>Hemlagad lunch i Kungens Kurva</Text>
             <Text style={styles.heroText}>Välj din mat och betala på plats.</Text>
@@ -1187,7 +1203,7 @@ function updateFullMenu(category, newItems) {
   justifyContent: 'space-between',
   marginBottom: 12,
 }}>
-  {CATEGORIES.map((category) => (
+  {categories.map((category) => (
     <TouchableOpacity
       key={category}
       onPress={() => setSection(category)}
@@ -1200,7 +1216,7 @@ function updateFullMenu(category, newItems) {
       }}
     >
       <Image
-        source={typeof FOOD_IMAGES[category] === 'string' ? { uri: FOOD_IMAGES[category] } : FOOD_IMAGES[category]}
+        source={typeof foodImages[category] === 'string' ? { uri: foodImages[category] } : foodImages[category]}
         style={{
           width: '100%',
           height: 68,
@@ -1328,12 +1344,12 @@ onAdd={() => {
               {section}
             </Text>
 
-            {!!FOOD_IMAGES[section] && (
+            {!!foodImages[section] && (
   <Image
     source={
-      typeof FOOD_IMAGES[section] === 'string'
-        ? { uri: FOOD_IMAGES[section] }
-        : FOOD_IMAGES[section]
+      typeof foodImages[section] === 'string'
+        ? { uri: foodImages[section] }
+        : foodImages[section]
     }
     style={styles.sectionImage}
   />
@@ -1749,6 +1765,7 @@ onAdd={() => {
               >
 Ändra hela menyn
               </Text>
+              <CatalogManager supabase={supabase} categories={categories} images={foodImages} onSaved={loadCatalog} styles={styles} />
                    <View style={{ flexDirection: 'row', gap: 8 }}>
   <View style={{ flex: 1 }}>
     <AppButton
@@ -1768,7 +1785,7 @@ onAdd={() => {
   <>
     <Text style={styles.label}>Kategori för ny maträtt</Text>
     <View style={styles.days}>
-      {CATEGORIES.filter((category) =>
+      {categories.filter((category) =>
         category !== 'Boka bord' && category !== 'Catering & Festlokal'
       ).map((category) => (
         <TouchableOpacity
@@ -1811,7 +1828,7 @@ onAdd={() => {
 </Text>
 {adminMenuMode === 'edit' && (
   <>
-    {CATEGORIES
+    {categories
       .filter((category) => category !== 'Lunch' && category !== 'Boka bord' && category !== 'Catering & Festlokal')
       .map((category) => (
         <AppButton

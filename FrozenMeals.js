@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { FROZEN_PACKS, FROZEN_SLOTS, frozenDishes, frozenRows, makeFrozenBundle,
   selectedFrozenItems, selectionCount, validateFrozenRows } from './frozenMeals';
 
@@ -18,46 +18,56 @@ export function FrozenMealPicker({ dishes, onAdd, available, styles, Button }) {
 
   return (
     <View>
-      <Text style={styles.infoText}>Välj antal matlådor och blanda dina favoriträtter.</Text>
+      <Text style={frozenStyles.intro}>Välj själv och blanda dina favoriter</Text>
       <View style={[styles.types, { marginTop: 12 }]}>
         {FROZEN_PACKS.map((item) => <TouchableOpacity key={item.count}
           accessibilityRole="button" accessibilityLabel={`${item.count} matlådor, ${item.price} kronor`}
           accessibilityState={{ selected: packCount === item.count }}
           onPress={() => { if (packCount !== item.count) { setPackCount(item.count); setSelections({}); } }}
-          style={[styles.type, packCount === item.count && styles.typeActive]}>
-          <Text style={[styles.typeText, packCount === item.count && styles.typeTextActive]}>
+          style={[styles.type, frozenStyles.pack, packCount === item.count && frozenStyles.packActive]}>
+          <Text style={[styles.typeText, frozenStyles.packText, packCount === item.count && frozenStyles.goldText]}>
             {item.count} {item.count === 1 ? 'matlåda' : 'matlådor'}{'\n'}{item.price} kr
           </Text>
         </TouchableOpacity>)}
       </View>
-      <Text style={styles.label} accessibilityLiveRegion="polite">Valt {selected} av {packCount} matlådor</Text>
+      <View style={frozenStyles.selectionHeader}>
+        <Text style={frozenStyles.heading}>Välj {packCount} {packCount === 1 ? 'matlåda' : 'matlådor'}</Text>
+        <Text style={frozenStyles.progress} accessibilityLiveRegion="polite">{selected} av {packCount} valda</Text>
+      </View>
       {!names.length && <Text style={styles.empty}>Inga frysta matlådor finns att välja just nu.</Text>}
       {names.map((name) => {
         const qty = selectionCount(selections, name);
-        return <View key={name} style={styles.card}>
-          <Text style={[styles.item, { flex: 1 }]}>{name}</Text>
+        return <View key={name} style={frozenStyles.dish}>
+          <Text style={frozenStyles.dishName}>{name}</Text>
           <View style={styles.qty}>
-            <TouchableOpacity style={styles.small} disabled={!qty} accessibilityRole="button"
+            <TouchableOpacity style={[frozenStyles.control, frozenStyles.minus, !qty && frozenStyles.disabled]} disabled={!qty} accessibilityRole="button"
               accessibilityLabel={`Minska antal ${name}`} onPress={() => setSelections((old) => ({ ...old, [name]: Math.max(0, selectionCount(old, name) - 1) }))}>
-              <Text style={styles.smallText}>−</Text>
+              <Text style={frozenStyles.minusText}>−</Text>
             </TouchableOpacity>
-            <Text style={styles.qtyText}>{qty}</Text>
-            <TouchableOpacity style={[styles.small, selected >= packCount && { opacity: 0.4 }]}
+            <Text style={frozenStyles.quantity}>{qty}</Text>
+            <TouchableOpacity style={[frozenStyles.control, (!available || selected >= packCount) && frozenStyles.disabled]}
               disabled={!available || selected >= packCount} accessibilityRole="button"
               accessibilityLabel={`Öka antal ${name}`} onPress={() => setSelections((old) => {
                 const total = selectedFrozenItems(names, old).reduce((sum, item) => sum + item.qty, 0);
                 return total >= packCount ? old : { ...old, [name]: selectionCount(old, name) + 1 };
               })}>
-              <Text style={styles.smallText}>+</Text>
+              <Text style={frozenStyles.plusText}>+</Text>
             </TouchableOpacity>
           </View>
         </View>;
       })}
-      {!!names.length && <Button title={`Lägg valda matlådor i kundkorgen • ${pack.price} kr`}
-        disabled={!available || !bundle} onPress={() => {
-          if (bundle && onAdd(bundle)) setSelections({});
-        }} />}
-      <Text style={styles.muted}>Välj exakt {packCount} {packCount === 1 ? 'matlåda' : 'matlådor'}. Du kan välja flera av samma rätt.</Text>
+      {!!names.length && <View style={frozenStyles.summary}>
+        <Text style={frozenStyles.summaryTitle} accessibilityLiveRegion="polite">{selected} av {packCount} valda</Text>
+        <Text style={frozenStyles.summaryText}>{selected < packCount ? `Välj ${packCount - selected} till` : 'Dina matlådor är valda'}</Text>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Lägg i kundkorg, ${pack.price} kronor`}
+          accessibilityState={{ disabled: !available || !bundle }}
+          disabled={!available || !bundle} style={[frozenStyles.cartButton, (!available || !bundle) && frozenStyles.disabled]}
+          onPress={() => { if (bundle && onAdd(bundle)) setSelections({}); }}>
+          <Text style={frozenStyles.cartButtonText}>Lägg i kundkorg · {pack.price} kr</Text>
+        </TouchableOpacity>
+        <Text style={frozenStyles.payment}>Betalning sker på restaurangen</Text>
+      </View>}
+      <Text style={styles.muted}>Du kan välja flera av samma rätt.</Text>
     </View>
   );
 }
@@ -101,3 +111,30 @@ export function FrozenMenuEditor({ dishes, onSave, styles, Button }) {
     </View>
   );
 }
+
+const NAVY = '#142b45';
+const GOLD = '#d6b46b';
+const frozenStyles = StyleSheet.create({
+  intro: { color: '#596b7e', fontSize: 17, lineHeight: 25, textAlign: 'center', marginBottom: 6 },
+  pack: { paddingVertical: 16, minHeight: 76, justifyContent: 'center', borderColor: '#dce2e9', borderWidth: 2 },
+  packActive: { backgroundColor: NAVY, borderColor: GOLD },
+  packText: { fontSize: 15, lineHeight: 23, color: NAVY },
+  goldText: { color: GOLD },
+  selectionHeader: { marginTop: 10, marginBottom: 16, gap: 5 },
+  heading: { color: NAVY, fontSize: 23, fontWeight: '900' },
+  progress: { color: '#596b7e', fontSize: 16 },
+  dish: { backgroundColor: '#ffffff', borderRadius: 16, borderWidth: 1, borderColor: '#e0e7ee', padding: 16, marginBottom: 12, gap: 14 },
+  dishName: { color: NAVY, fontSize: 19, lineHeight: 27, fontWeight: '800' },
+  control: { backgroundColor: NAVY, width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  minus: { backgroundColor: '#edf0f4' },
+  minusText: { color: NAVY, fontSize: 28, fontWeight: '700' },
+  plusText: { color: '#ffffff', fontSize: 28, fontWeight: '700' },
+  quantity: { color: NAVY, fontWeight: '900', fontSize: 23, minWidth: 52, textAlign: 'center' },
+  disabled: { opacity: 0.4 },
+  summary: { backgroundColor: NAVY, padding: 20, borderRadius: 20, marginTop: 12 },
+  summaryTitle: { color: '#ffffff', fontSize: 25, fontWeight: '900' },
+  summaryText: { color: '#dbe4ed', fontSize: 17, marginTop: 4, marginBottom: 18 },
+  cartButton: { backgroundColor: GOLD, borderRadius: 12, paddingVertical: 17, paddingHorizontal: 10, minHeight: 54, alignItems: 'center' },
+  cartButtonText: { color: NAVY, fontSize: 17, fontWeight: '900', textAlign: 'center' },
+  payment: { color: '#dbe4ed', fontSize: 13, marginTop: 14, textAlign: 'center' },
+});

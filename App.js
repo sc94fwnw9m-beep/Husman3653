@@ -1167,14 +1167,14 @@ function updateFullMenu(category, newItems) {
         </View>
 
         <View style={styles.info}>
-          <Text style={styles.infoText}>
+          <Text style={[styles.infoText, { color: GOLD }]}>
             Beställ i appen • Betala på
             restaurangen
           </Text>
         </View>
 
         <View style={styles.info}>
-          <Text style={styles.infoText}>
+          <Text style={[styles.infoText, { color: GOLD }]}>
             Inkl. smör, bröd, dryck, kaffe, hembakt bröd, salladsbuffé, te, kaka och soppa
             {'\n'}Lunchhäfte: köp 10 luncher – 11:e lunchen gratis
           </Text>
@@ -1216,7 +1216,7 @@ function updateFullMenu(category, newItems) {
         paddingHorizontal: 4,
       }}>
         <Text style={{
-          color: '#ffffff',
+          color: GOLD,
           fontSize: 16,
           fontWeight: '800',
           textAlign: 'center',
@@ -1955,7 +1955,20 @@ onAdd={() => {
 function Header({ onAdminOpen }) {
   return (
     <Pressable style={styles.header} onPress={onAdminOpen}>
-      <Image source={require('./assets/icon.png')} style={styles.logo} />
+      <View style={styles.brandRow}>
+        <View style={styles.brandSide}>
+          <View style={styles.sloganBadge}>
+            <Text style={styles.sloganText}>Maten ett{'\n'}klick bort</Text>
+          </View>
+        </View>
+        <Image source={require('./assets/icon.png')} style={[styles.logo, { marginBottom: 0 }]} />
+        <View style={[styles.brandSide, { alignItems: 'flex-end', paddingRight: 0, paddingLeft: 12 }]}>
+          <View accessible accessibilityRole="image" accessibilityLabel="Svenska flaggan" style={styles.swedishFlag}>
+            <View style={styles.flagHorizontal} />
+            <View style={styles.flagVertical} />
+          </View>
+        </View>
+      </View>
       <Text style={styles.brand}>
         Husman Lunchrestaurang
       </Text>
@@ -2028,8 +2041,16 @@ function AppButton({
 }
 
 const BLUE = '#0865bd';
+const GOLD = '#bd8b38';
 
 const styles = StyleSheet.create({
+  brandRow: { width: '100%', flexDirection: 'row', alignItems: 'center', marginBottom: 9 },
+  brandSide: { flex: 1, alignItems: 'flex-start', paddingRight: 12 },
+  sloganBadge: { backgroundColor: '#14344f', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, maxWidth: '100%' },
+  sloganText: { color: GOLD, fontSize: 14, lineHeight: 18, fontWeight: '800' },
+  swedishFlag: { width: 70, height: 38, maxWidth: '100%', backgroundColor: '#143f65', borderRadius: 6, overflow: 'hidden' },
+  flagHorizontal: { position: 'absolute', top: '40%', left: 0, right: 0, height: '20%', backgroundColor: GOLD },
+  flagVertical: { position: 'absolute', top: 0, bottom: 0, left: '32%', width: '13%', backgroundColor: GOLD },
   page: {
     flex: 1,
     backgroundColor: '#f5f9ff',
@@ -2076,13 +2097,13 @@ const styles = StyleSheet.create({
   },
 
   heroTitle: {
-    color: '#ffffff',
+    color: GOLD,
     fontSize: 20,
     fontWeight: '900',
   },
 
   heroText: {
-    color: '#eaf5ff',
+    color: GOLD,
     marginTop: 4,
     fontWeight: '600',
   },
@@ -2098,13 +2119,13 @@ const styles = StyleSheet.create({
   brand: {
     fontSize: 27,
     fontWeight: '900',
-    color: BLUE,
+    color: GOLD,
     textAlign: 'center',
   },
 
   open: {
     fontSize: 13,
-    color: '#64788e',
+    color: GOLD,
     marginTop: 6,
   },
 
@@ -2441,5 +2462,3 @@ const styles = StyleSheet.create({
 
 
               
-
-

@@ -35,7 +35,7 @@ async function run() {
     orderSubmitInProgress: { current: false }, bookingSubmitInProgress: { current: false },
     menuAvailable: true, cart: [{ name: 'Fixture' }], customerName: 'Fixture', customerPhone: '123',
     orderDate: '2026-12-24', orderTime: '12:00', message: '', total: 139, orderType: 'Äta här',
-    expoPushToken: '', lunchReservationError: () => null,
+    frozenInventory: { refresh() {} }, expoPushToken: '', lunchReservationError: () => null,
     bookingName: 'Fixture', bookingPhone: '123', bookingDate: '2026-12-24', bookingTime: '12:00',
     bookingGuests: '2', bookingMessage: '',
     setCart() {}, setCustomerName() {}, setCustomerPhone() {}, setMessage() {},

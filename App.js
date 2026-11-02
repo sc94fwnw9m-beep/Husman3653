@@ -21,6 +21,7 @@ import { createClient } from '@supabase/supabase-js';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { checkOpenDate, closureForDate, closureText } from './closures';
 import { ClosedDaysAdmin, ClosedDaysNotice, useClosedDays } from './ClosedDays';
+import { useFrozenStock } from './frozenStock';
 import { FrozenMealPicker, FrozenMenuEditor } from './FrozenMeals';
 import { FROZEN_CATEGORY, checkFrozenCart, frozenDishes } from './frozenMeals';
 import * as Notifications from 'expo-notifications';
@@ -388,6 +389,7 @@ export default function App() {
     useState(DEFAULT_LUNCH);
   const [menuAvailable, setMenuAvailable] = useState(false);
 const [fullMenu, setFullMenu] = useState(MENU);
+const frozenInventory = useFrozenStock(supabase);
   const [ORDER_TYPES, setOrderTypes] = useState(DEFAULT_ORDER_TYPES);
   const [editLunchPrices, setEditLunchPrices] = useState(false);
   const [priceDraft, setPriceDraft] = useState(['139', '129', '119']);
@@ -722,17 +724,28 @@ async function loadPublishedMenu() {
   Alert.alert('Klart', `${section} är uppdaterad för alla kunder.`);
  }
 
- async function saveFrozenMenu(items) {
-  const error = await publishMenuSection(FROZEN_CATEGORY, '', items);
-  if (error) {
-    Alert.alert('Frysta matlådor', String(error.message || '').includes('Menu changed elsewhere')
-      ? 'Menyn har ändrats på en annan enhet. Dina texter finns kvar här. Hämta den senaste menyn innan du sparar igen.'
-      : 'Menyn kunde inte sparas. Dina texter finns kvar så att du kan försöka igen.');
+ async function saveFrozenMenu(items, stock, expectedStock) {
+  if (menuPublishInProgress.current || !frozenInventory.loaded || menuSnapshot.current === null) return false;
+  menuPublishInProgress.current = true;
+  try {
+    const { data, error } = await supabase.rpc('publish_frozen_menu_v1', {
+      p_items: items.map(([name, price]) => ({ name, price })),
+      p_expected: menuSnapshot.current.filter(row => row.category === FROZEN_CATEGORY && row.day === ''),
+      p_stock: stock, p_expected_stock: expectedStock,
+    });
+    if (error) throw error;
+    menuSnapshot.current = [...menuSnapshot.current.filter(row => row.category !== FROZEN_CATEGORY || row.day !== ''), ...data];
+    setFullMenu(old => ({ ...old, [FROZEN_CATEGORY]: items }));
+    frozenInventory.refresh();
+    Alert.alert('Sparat', 'Maträtter och lagersaldo är sparade. Rätter med 0 i lager visas som Slut i lager.');
+    return true;
+  } catch (error) {
+    frozenInventory.refresh();
+    Alert.alert('Frysta matlådor', String(error.message || '').includes('changed')
+      ? 'Menyn eller lagret har ändrats, till exempel genom en beställning. Dina texter finns kvar. Öppna menyn igen för att hämta aktuellt saldo innan du ändrar och sparar.'
+      : 'Maträtter och lager kunde inte sparas. Dina texter finns kvar.');
     return false;
-  }
-  setFullMenu((old) => ({ ...old, [FROZEN_CATEGORY]: items }));
-  Alert.alert('Sparat', `${items.length} maträtter visas nu under Frysta matlådor. Tomma rader visas inte för kunderna.`);
-  return true;
+  } finally { menuPublishInProgress.current = false; }
  }
 
  function addFrozenBundle(bundle) {
@@ -928,7 +941,7 @@ async function loadPublishedMenu() {
 
       Alert.alert(
         'Beställning',
-        error.message?.includes('RESTAURANT_CLOSED')
+        error.message?.includes('FROZEN_STOCK') ? 'En eller flera matlådor har tagit slut eller räcker inte. Välj matlådorna igen.' : error.message?.includes('RESTAURANT_CLOSED')
           ? 'Restaurangen är stängd det datumet. Välj ett annat datum.'
           : 'Beställningen kunde inte skickas just nu.'
       );
@@ -941,6 +954,7 @@ async function loadPublishedMenu() {
       'Beställningen är skickad till restaurangen. Betalning sker på restaurangen.'
     );
 
+    frozenInventory.refresh();
     setCart([]);
     setCustomerName('');
     setCustomerPhone('');
@@ -998,7 +1012,7 @@ async function loadPublishedMenu() {
 
       Alert.alert(
         'Boka bord',
-        error.message?.includes('RESTAURANT_CLOSED')
+        error.message?.includes('FROZEN_STOCK') ? 'En eller flera matlådor har tagit slut eller räcker inte. Välj matlådorna igen.' : error.message?.includes('RESTAURANT_CLOSED')
           ? 'Restaurangen är stängd det datumet. Välj ett annat datum.'
           : 'Bokningen kunde inte skickas just nu.'
       );
@@ -1998,7 +2012,7 @@ day === item && styles.dayActive,
   />
 )}
             {section === FROZEN_CATEGORY ? (
-              <FrozenMealPicker dishes={fullMenu[FROZEN_CATEGORY]} onAdd={addFrozenBundle}
+              <FrozenMealPicker inventory={frozenInventory} cart={cart} dishes={fullMenu[FROZEN_CATEGORY]} onAdd={addFrozenBundle}
                 available={menuAvailable} styles={styles} Button={AppButton} />
             ) : fullMenu[section].map(
               ([name, price]) => (
@@ -2489,7 +2503,7 @@ day === item && styles.dayActive,
 )}
 
 {section === FROZEN_CATEGORY && (
-  <FrozenMenuEditor dishes={fullMenu[FROZEN_CATEGORY]} onSave={saveFrozenMenu} styles={styles} Button={AppButton} />
+  <FrozenMenuEditor inventory={frozenInventory} dishes={fullMenu[FROZEN_CATEGORY]} onSave={saveFrozenMenu} styles={styles} Button={AppButton} />
 )}
 {fullMenu[section] && section !== 'Lunch' && section !== FROZEN_CATEGORY && (
   <Text style={styles.adminHeading}>

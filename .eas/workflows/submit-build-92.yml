@@ -1,0 +1,8 @@
+name: Submit iOS 1.0.10 build 92
+
+jobs:
+  submit_ios:
+    type: submit
+    params:
+      build_id: 4990bdf0-40b1-451b-8647-f0a3d5e03533
+      profile: production

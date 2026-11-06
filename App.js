@@ -2815,7 +2815,7 @@ function Header({ onAdminOpen }) {
       <View style={styles.brandRow}>
         <View style={styles.brandSide}>
           <View style={styles.sloganBadge}>
-            <Text style={styles.sloganText}>Maten ett{'\n'}klick bort</Text>
+            <Text style={styles.sloganText}>God mat.{'\n'}Bara ett tryck bort.</Text>
           </View>
         </View>
         <Image source={require('./assets/icon.png')} style={[styles.logo, { marginBottom: 0 }]} />

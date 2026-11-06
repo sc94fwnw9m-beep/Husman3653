@@ -1,10 +1,10 @@
-name: Publish Android header slogan
+name: Publish iPhone header slogan
 
 jobs:
-  update_android:
+  update_ios:
     type: update
     environment: production
     params:
-      platform: android
+      platform: ios
       channel: production
       message: 'God mat. Bara ett tryck bort.'

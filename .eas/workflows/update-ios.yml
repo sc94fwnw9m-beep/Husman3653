@@ -1,10 +1,10 @@
-name: Publish frozen meal menu for iOS and Android
+name: Publish Android header slogan
 
 jobs:
-  update_ios:
+  update_android:
     type: update
     environment: production
     params:
-      platform: all
+      platform: android
       channel: production
-      message: 'Frysta matlådor med 20 ägarrader och kundval'
+      message: 'God mat. Bara ett tryck bort.'

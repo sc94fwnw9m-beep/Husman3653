@@ -1,4 +1,4 @@
-name: Publish 1.0.11 customer details update
+name: Publish app update notice
 
 jobs:
   update_ios:
@@ -7,4 +7,4 @@ jobs:
     params:
       platform: all
       channel: production
-      message: 'Sparade kunduppgifter och tydlig helgstängning'
+      message: 'Visa uppdateringsruta bara när en ny butiksversion finns'

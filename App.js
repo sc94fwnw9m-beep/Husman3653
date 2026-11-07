@@ -1,3 +1,4 @@
+import { useAppUpdateNotice } from './AppUpdateNotice';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getOrderTimeError } from './order-time';
    import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -231,6 +232,7 @@ function AdminOrderSound({ soundRef, ringing }) {
 }
 
 export default function App() {
+  const appUpdateNotice = useAppUpdateNotice(supabase);
   const closedDays = useClosedDays(supabase);
   const bookingSubmitInProgress = useRef(false);
   const messageScrollRef = useRef(null);
@@ -1688,6 +1690,7 @@ function updateFullMenu(category, newItems) {
     return (
       <SafeAreaView style={styles.page}>
         <StatusBar style="dark" />
+        {appUpdateNotice}
 
         <KeyboardAvoidingView
           style={{ flex: 1 }}
@@ -1945,6 +1948,7 @@ function updateFullMenu(category, newItems) {
   return (
     <SafeAreaView style={styles.page}>
       <StatusBar style="dark" />
+        {appUpdateNotice}
 
       <KeyboardAvoidingView
           style={{ flex: 1 }}

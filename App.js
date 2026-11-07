@@ -1,3 +1,4 @@
+import { getBookingTimeError } from './booking-time';
 import { useAppUpdateNotice } from './AppUpdateNotice';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getOrderTimeError } from './order-time';
@@ -1060,10 +1061,17 @@ async function loadPublishedMenu() {
 
     bookingSubmitInProgress.current = true;
     try {
-    const availability = await checkOpenDate(supabase, bookingDate.trim());
-    if (!availability.allowed) {
-      Alert.alert('Bokning', availability.message);
+    const timeError = getBookingTimeError(bookingDate.trim(), bookingTime.trim(), kind);
+    if (timeError) {
+      Alert.alert('Bokning', timeError);
       return;
+    }
+    if (kind !== 'event') {
+      const availability = await checkOpenDate(supabase, bookingDate.trim());
+      if (!availability.allowed) {
+        Alert.alert('Bokning', availability.message);
+        return;
+      }
     }
     const { error } = await supabase
       .from('bookings')
@@ -2169,7 +2177,7 @@ day === item && styles.dayActive,
         minimumDate={new Date()}
         onChange={(_, selected) => {
           setShowBookingDatePicker(false);
-          if (selected) selectAvailableDate(selected, setBookingDate);
+          if (selected) setBookingDate(formatDate(selected));
         }}
       />
     )}
@@ -2208,7 +2216,6 @@ day === item && styles.dayActive,
 
 <AppButton
   title="Skicka bokningsförfrågan"
-  disabled={!!closureForDate(closedDays.closures, bookingDate)}
   onPress={() => bookTable('event')}
 />
 </>
@@ -2221,6 +2228,7 @@ day === item && styles.dayActive,
               Boka bord
             </Text>
 
+            <Text style={styles.muted}>Boka bord måndag–fredag 08:00–14:00. Stängda dagar kan inte bokas.</Text>
             <Text style={styles.label}>Namn</Text>
             <TextInput
               style={styles.field}
@@ -2256,7 +2264,13 @@ day === item && styles.dayActive,
                 minimumDate={new Date()}
                 onChange={(_, selected) => {
                   setShowBookingDatePicker(false);
-                  if (selected) selectAvailableDate(selected, setBookingDate);
+                  if (selected) {
+                    const date = formatDate(selected);
+                    if ([0, 6].includes(new Date(`${date}T12:00:00Z`).getUTCDay())) {
+                      setBookingDate('');
+                      Alert.alert('Stängt', 'Restaurangen är stängd lördag och söndag. Välj en vardag.');
+                    } else selectAvailableDate(selected, setBookingDate);
+                  }
                 }}
               />
             )}
@@ -2266,11 +2280,13 @@ day === item && styles.dayActive,
             </Text>
 
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {['08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30','14:00'].map((time) => (
+              {['08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30'].map((time) => (
                 <TouchableOpacity
                   key={time}
+                  disabled={Boolean(getBookingTimeError(bookingDate, time)) || !!closureForDate(closedDays.closures, bookingDate)}
                   style={[
                     styles.pickerButton,
+                    (getBookingTimeError(bookingDate, time) || closureForDate(closedDays.closures, bookingDate)) && { opacity: 0.4 },
                     bookingTime === time && styles.timeButtonActive,
                   ]}
                   onPress={() => setBookingTime(time)}

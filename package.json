@@ -1,14 +1,17 @@
 {
   "name": "husman-lunchrestaurang",
-  "version": "1.0.7",
+  "version": "1.0.10",
   "private": true,
-  "main": "node_modules/expo/AppEntry.js",
+  "main": "index.js",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "build:android": "eas build --platform android --profile production",
-    "build:ios": "eas build --platform ios --profile production"
+    "build:ios": "eas build --platform ios --profile production",
+    "verify:fixes": "node scripts/verify-fixes.cjs",
+    "verify:closed-days": "node --test scripts/closures.test.js && node scripts/closed-days-integration.cjs",
+    "verify:frozen-meals": "node --test scripts/frozen-meals.test.js"
   },
   "dependencies": {
     "@react-native-community/datetimepicker": "8.4.4",
@@ -21,13 +24,16 @@
     "react": "19.1.0",
     "react-native": "0.81.5",
     "react-native-safe-area-context": "~5.6.0",
-    "expo-updates": "~29.0.20"
+    "expo-updates": "~29.0.20",
+    "expo-image-picker": "~17.0.11"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@babel/plugin-transform-class-properties": "^7.25.9",
     "@babel/plugin-transform-private-methods": "^7.25.9",
     "@babel/plugin-transform-private-property-in-object": "^7.25.9",
-    "babel-preset-expo": "~54.0.12"
+    "babel-preset-expo": "~54.0.12",
+    "@babel/parser": "7.29.9",
+    "@electric-sql/pglite": "0.5.8"
   }
 }

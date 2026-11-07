@@ -1,4 +1,4 @@
-name: Publish app update notice
+name: Publish table booking hours
 
 jobs:
   update_ios:
@@ -7,4 +7,4 @@ jobs:
     params:
       platform: all
       channel: production
-      message: 'Visa uppdateringsruta bara när en ny butiksversion finns'
+      message: 'Boka bord under öppettider; catering och fest alla dagar'

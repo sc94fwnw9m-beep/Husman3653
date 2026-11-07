@@ -1,4 +1,4 @@
-name: Publish frozen meal menu for iOS and Android
+name: Publish 1.0.11 customer details update
 
 jobs:
   update_ios:
@@ -7,4 +7,4 @@ jobs:
     params:
       platform: all
       channel: production
-      message: 'Frysta matlådor med 20 ägarrader och kundval'
+      message: 'Sparade kunduppgifter och tydlig helgstängning'

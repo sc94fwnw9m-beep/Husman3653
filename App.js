@@ -560,7 +560,9 @@ async function loadPublishedMenu() {
 
       Alert.alert(
         'Beställning',
-        error.message?.includes('ORDER_TIME_INVALID')
+        error.message?.includes('ORDER_CLOSED')
+          ? 'Restaurangen är stängd lördag och söndag. Välj en vardag.'
+          : error.message?.includes('ORDER_TIME_INVALID')
           ? 'Datumet eller tiden har passerat. Välj ett nytt datum och en kommande tid.'
           : 'Beställningen kunde inte skickas just nu.'
       );

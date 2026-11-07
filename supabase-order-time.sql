@@ -20,6 +20,9 @@ begin
   if not isfinite(requested_at) or requested_at <= (clock_timestamp() at time zone 'Europe/Stockholm') then
     raise exception 'ORDER_TIME_INVALID: Datumet eller tiden har passerat.' using errcode = '22023';
   end if;
+  if extract(isodow from requested_at) in (6,7) then
+    raise exception 'ORDER_CLOSED: Restaurangen är stängd lördag och söndag. Välj en vardag.' using errcode = '22023';
+  end if;
   return new;
 end;
 $$;

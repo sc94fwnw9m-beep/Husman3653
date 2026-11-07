@@ -1,10 +1,10 @@
-name: Publish iPhone header slogan
+name: Publish app update notice
 
 jobs:
   update_ios:
     type: update
     environment: production
     params:
-      platform: ios
+      platform: all
       channel: production
-      message: 'God mat. Bara ett tryck bort.'
+      message: 'Visa uppdateringsruta bara när en ny butiksversion finns'

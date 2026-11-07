@@ -1,3 +1,4 @@
+import { getOrderTimeError } from './order-time';
    import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -529,6 +530,12 @@ async function loadPublishedMenu() {
       return;
     }
 
+    const timeError = getOrderTimeError(orderDate.trim(), orderTime.trim());
+    if (timeError) {
+      Alert.alert('Välj en ny tid', timeError);
+      return;
+    }
+
     const { error } = await supabase
       .from('orders')
       .insert({
@@ -553,7 +560,9 @@ async function loadPublishedMenu() {
 
       Alert.alert(
         'Beställning',
-        'Beställningen kunde inte skickas just nu.'
+        error.message?.includes('ORDER_TIME_INVALID')
+          ? 'Datumet eller tiden har passerat. Välj ett nytt datum och en kommande tid.'
+          : 'Beställningen kunde inte skickas just nu.'
       );
 
       return;
@@ -1082,7 +1091,10 @@ function updateFullMenu(category, newItems) {
               minimumDate={new Date()}
               onChange={(_, selected) => {
                 setShowOrderDatePicker(Platform.OS === 'ios');
-                if (selected) setOrderDate(formatDate(selected));
+                if (selected) {
+                  setOrderDate(formatDate(selected));
+                  setOrderTime('');
+                }
               }}
             />
           )}
@@ -1095,7 +1107,10 @@ function updateFullMenu(category, newItems) {
   {['08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30','14:00'].map((time) => (
    <TouchableOpacity
   key={time}
+  disabled={Boolean(getOrderTimeError(orderDate, time))}
+  accessibilityState={{ disabled: Boolean(getOrderTimeError(orderDate, time)) }}
   style={[
+    getOrderTimeError(orderDate, time) && { opacity: 0.35 },
     styles.pickerButton,
     orderTime === time && styles.timeButtonActive,
   ]}

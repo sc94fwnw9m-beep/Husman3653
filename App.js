@@ -1,3 +1,5 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getOrderTimeError } from './order-time';
    import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -442,6 +444,53 @@ const frozenInventory = useFrozenStock(supabase);
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [savedCustomer, setSavedCustomer] = useState(null);
+  const [customerStorageReady, setCustomerStorageReady] = useState(false);
+  const [savingCustomer, setSavingCustomer] = useState(false);
+  useEffect(() => {
+    let active = true;
+    AsyncStorage.getItem('husman.customer.v1').then(raw => {
+      const customer = raw ? JSON.parse(raw) : null;
+      if (active && typeof customer?.name === 'string' && typeof customer?.phone === 'string') {
+        setSavedCustomer(customer);
+        setCustomerName(customer.name);
+        setCustomerPhone(customer.phone);
+      }
+    }).catch(() => {}).finally(() => {
+      if (active) setCustomerStorageReady(true);
+    });
+    return () => { active = false; };
+  }, []);
+
+  async function saveCustomerDetails() {
+    if (!customerName.trim() || !customerPhone.trim()) {
+      Alert.alert('Mina uppgifter', 'Fyll i namn och telefonnummer först.');
+      return;
+    }
+    setSavingCustomer(true);
+    try {
+      const customer = { name: customerName.trim(), phone: customerPhone.trim() };
+      await AsyncStorage.setItem('husman.customer.v1', JSON.stringify(customer));
+      setSavedCustomer(customer);
+      Alert.alert('Sparat', 'Ditt namn och telefonnummer fylls i automatiskt nästa gång på den här mobilen.');
+    } catch {
+      Alert.alert('Mina uppgifter', 'Uppgifterna kunde inte sparas. Försök igen.');
+    } finally { setSavingCustomer(false); }
+  }
+
+  async function forgetCustomerDetails() {
+    setSavingCustomer(true);
+    try {
+      await AsyncStorage.removeItem('husman.customer.v1');
+      setSavedCustomer(null);
+      setCustomerName('');
+      setCustomerPhone('');
+    } catch {
+      Alert.alert('Mina uppgifter', 'Uppgifterna kunde inte tas bort. Försök igen.');
+    } finally { setSavingCustomer(false); }
+  }
+
+
   const [showOrderDatePicker, setShowOrderDatePicker] = useState(false);
   const [showOrderTimePicker, setShowOrderTimePicker] = useState(false);
 
@@ -919,6 +968,9 @@ async function loadPublishedMenu() {
       return;
     }
 
+    const timeError = getOrderTimeError(orderDate.trim(), orderTime.trim());
+    if (timeError) { Alert.alert('Beställning', timeError); return; }
+
     const lunchError = lunchReservationError(cart, orderDate.trim());
     if (lunchError) {
       Alert.alert('Lunchbeställning', lunchError);
@@ -958,7 +1010,7 @@ async function loadPublishedMenu() {
 
       Alert.alert(
         'Beställning',
-        error.message?.includes('FROZEN_STOCK') ? 'En eller flera matlådor har tagit slut eller räcker inte. Välj matlådorna igen.' : error.message?.includes('RESTAURANT_CLOSED')
+        error.message?.includes('ORDER_CLOSED') ? 'Restaurangen är stängd lördag och söndag. Välj en vardag.' : error.message?.includes('ORDER_TIME_INVALID') ? 'Datumet eller tiden har passerat. Välj ett nytt datum och en kommande tid.' : error.message?.includes('FROZEN_STOCK') ? 'En eller flera matlådor har tagit slut eller räcker inte. Välj matlådorna igen.' : error.message?.includes('RESTAURANT_CLOSED')
           ? 'Restaurangen är stängd det datumet. Välj ett annat datum.'
           : 'Beställningen kunde inte skickas just nu.'
       );
@@ -973,8 +1025,8 @@ async function loadPublishedMenu() {
 
     frozenInventory.refresh();
     setCart([]);
-    setCustomerName('');
-    setCustomerPhone('');
+    setCustomerName(savedCustomer?.name || '');
+    setCustomerPhone(savedCustomer?.phone || '');
     setMessage('');
     setOrderDate('');
     setOrderTime('');
@@ -1760,6 +1812,7 @@ function updateFullMenu(category, newItems) {
           <Text style={styles.label}>Namn</Text>
           <TextInput
             style={styles.field}
+            editable={customerStorageReady && !savingCustomer}
             value={customerName}
             onChangeText={setCustomerName}
             placeholder="Ditt namn"
@@ -1769,12 +1822,25 @@ function updateFullMenu(category, newItems) {
           <Text style={styles.label}>Telefonnummer</Text>
           <TextInput
             style={styles.field}
+            editable={customerStorageReady && !savingCustomer}
             value={customerPhone}
             onChangeText={setCustomerPhone}
             placeholder="T.ex. 070 123 45 67"
             keyboardType="phone-pad"
             autoComplete="tel"
           />
+
+          <TouchableOpacity style={styles.pickerButton}
+            disabled={!customerStorageReady || savingCustomer}
+            onPress={saveCustomerDetails}>
+            <Text style={styles.pickerValue}>{savingCustomer ? 'Vänta…' : 'Spara namn och telefonnummer'}</Text>
+          </TouchableOpacity>
+          <Text style={styles.infoText}>Sparas på den här mobilen och fylls i automatiskt nästa gång. Ingen inloggning behövs.</Text>
+          {savedCustomer && (
+            <TouchableOpacity style={styles.pickerButton} disabled={savingCustomer} onPress={forgetCustomerDetails}>
+              <Text style={styles.pickerValue}>Ta bort sparade uppgifter</Text>
+            </TouchableOpacity>
+          )}
 
           <Text style={styles.label}>
             Datum 📅
@@ -1796,7 +1862,13 @@ function updateFullMenu(category, newItems) {
               minimumDate={new Date()}
               onChange={(_, selected) => {
                 setShowOrderDatePicker(Platform.OS === 'ios');
-                if (selected) selectAvailableDate(selected, setOrderDate);
+                if (selected) {
+                  const selectedDate = formatDate(selected);
+                  const error = getOrderTimeError(selectedDate, '23:59');
+                  if (error) { Alert.alert('Beställning', error); return; }
+                  setOrderTime('');
+                  selectAvailableDate(selected, setOrderDate);
+                }
               }}
             />
           )}
@@ -1809,7 +1881,9 @@ function updateFullMenu(category, newItems) {
   {['08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30','14:00'].map((time) => (
    <TouchableOpacity
   key={time}
+  disabled={Boolean(getOrderTimeError(orderDate, time))}
   style={[
+    getOrderTimeError(orderDate, time) && { opacity: 0.35 },
     styles.pickerButton,
     orderTime === time && styles.timeButtonActive,
   ]}

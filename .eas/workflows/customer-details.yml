@@ -1,0 +1,19 @@
+name: Build customer details and weekend messages
+
+jobs:
+  build_ios:
+    type: build
+    params:
+      platform: ios
+      profile: production
+  build_android:
+    type: build
+    params:
+      platform: android
+      profile: production
+  submit_ios:
+    needs: [build_ios]
+    type: submit
+    params:
+      build_id: ${{ needs.build_ios.outputs.build_id }}
+      profile: production

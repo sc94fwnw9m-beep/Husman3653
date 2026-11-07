@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getOrderTimeError } from './order-time';
    import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -236,6 +237,52 @@ const [fullMenu, setFullMenu] = useState(MENU);
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [savedCustomer, setSavedCustomer] = useState(null);
+  const [customerStorageReady, setCustomerStorageReady] = useState(false);
+  const [savingCustomer, setSavingCustomer] = useState(false);
+  useEffect(() => {
+    let active = true;
+    AsyncStorage.getItem('husman.customer.v1').then(raw => {
+      const customer = raw ? JSON.parse(raw) : null;
+      if (active && typeof customer?.name === 'string' && typeof customer?.phone === 'string') {
+        setSavedCustomer(customer);
+        setCustomerName(customer.name);
+        setCustomerPhone(customer.phone);
+      }
+    }).catch(() => {}).finally(() => {
+      if (active) setCustomerStorageReady(true);
+    });
+    return () => { active = false; };
+  }, []);
+
+  async function saveCustomerDetails() {
+    if (!customerName.trim() || !customerPhone.trim()) {
+      Alert.alert('Mina uppgifter', 'Fyll i namn och telefonnummer först.');
+      return;
+    }
+    setSavingCustomer(true);
+    try {
+      const customer = { name: customerName.trim(), phone: customerPhone.trim() };
+      await AsyncStorage.setItem('husman.customer.v1', JSON.stringify(customer));
+      setSavedCustomer(customer);
+      Alert.alert('Sparat', 'Ditt namn och telefonnummer fylls i automatiskt nästa gång på den här mobilen.');
+    } catch {
+      Alert.alert('Mina uppgifter', 'Uppgifterna kunde inte sparas. Försök igen.');
+    } finally { setSavingCustomer(false); }
+  }
+
+  async function forgetCustomerDetails() {
+    setSavingCustomer(true);
+    try {
+      await AsyncStorage.removeItem('husman.customer.v1');
+      setSavedCustomer(null);
+      setCustomerName('');
+      setCustomerPhone('');
+    } catch {
+      Alert.alert('Mina uppgifter', 'Uppgifterna kunde inte tas bort. Försök igen.');
+    } finally { setSavingCustomer(false); }
+  }
+
   const [showOrderDatePicker, setShowOrderDatePicker] = useState(false);
   const [showOrderTimePicker, setShowOrderTimePicker] = useState(false);
 
@@ -576,8 +623,8 @@ async function loadPublishedMenu() {
     );
 
     setCart([]);
-    setCustomerName('');
-    setCustomerPhone('');
+    setCustomerName(savedCustomer?.name || '');
+    setCustomerPhone(savedCustomer?.phone || '');
     setMessage('');
     setOrderDate('');
     setOrderTime('');
@@ -1061,6 +1108,7 @@ function updateFullMenu(category, newItems) {
           <Text style={styles.label}>Namn</Text>
           <TextInput
             style={styles.field}
+            editable={customerStorageReady && !savingCustomer}
             value={customerName}
             onChangeText={setCustomerName}
             placeholder="Ditt namn"
@@ -1070,12 +1118,25 @@ function updateFullMenu(category, newItems) {
           <Text style={styles.label}>Telefonnummer</Text>
           <TextInput
             style={styles.field}
+            editable={customerStorageReady && !savingCustomer}
             value={customerPhone}
             onChangeText={setCustomerPhone}
             placeholder="T.ex. 070 123 45 67"
             keyboardType="phone-pad"
             autoComplete="tel"
           />
+
+          <TouchableOpacity style={styles.pickerButton}
+            disabled={!customerStorageReady || savingCustomer}
+            onPress={saveCustomerDetails}>
+            <Text style={styles.pickerValue}>{savingCustomer ? 'Vänta…' : 'Spara namn och telefonnummer'}</Text>
+          </TouchableOpacity>
+          <Text style={styles.infoText}>Sparas på den här mobilen och fylls i automatiskt nästa gång. Ingen inloggning behövs.</Text>
+          {savedCustomer && (
+            <TouchableOpacity style={styles.pickerButton} disabled={savingCustomer} onPress={forgetCustomerDetails}>
+              <Text style={styles.pickerValue}>Ta bort sparade uppgifter</Text>
+            </TouchableOpacity>
+          )}
 
           <Text style={styles.label}>
             Datum 📅

@@ -1,3 +1,4 @@
+import { readHomeCatalog, saveHomeCatalog } from './src/homeCatalogCache';
 import { getBookingTimeError } from './booking-time';
 import { useAppUpdateNotice } from './AppUpdateNotice';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -398,20 +399,22 @@ export default function App() {
 const [fullMenu, setFullMenu] = useState(MENU);
 const [catalogRows, setCatalogRows] = useState([]);
 const [startupReady, setStartupReady] = useState(false);
-const [loadedHomeImages, setLoadedHomeImages] = useState({});
+const [localHomeImages, setLocalHomeImages] = useState({});
+const homeCache = useRef(null);
+const cacheWritePending = useRef(false);
+const hasCatalog = useRef(false);
 const [failedHomeImages, setFailedHomeImages] = useState({});
 const [startupError, setStartupError] = useState(false);
 const catalogRequest = useRef(false);
 const categories = [...CATEGORIES, ...catalogRows.map(row => row.name).filter(name => !CATEGORIES.includes(name))];
-const foodImages = { ...Object.fromEntries(categories.map(name => [name, FOOD_IMAGES.Lunch])), ...FOOD_IMAGES, ...Object.fromEntries(catalogRows.filter(row => row.image_url).map(row => [row.name, row.image_url])) };
-const homeImageKeys = ['hero', ...categories.map(name => 'category:' + name)];
-const homeImagesReady = startupReady && homeImageKeys.every(key => loadedHomeImages[key]);
+const foodImages = { ...Object.fromEntries(categories.map(name => [name, FOOD_IMAGES.Lunch])), ...FOOD_IMAGES, ...Object.fromEntries(catalogRows.filter(row => row.image_url).map(row => [row.name, row.image_url])), ...localHomeImages };
+const homeImagesReady = startupReady;
 function homeImageProps(key, source) {
   return {
-    source: failedHomeImages[key] ? require('./assets/icon.png')
+    source: !hasCatalog.current || failedHomeImages[key] ? require('./assets/icon.png')
       : typeof source === 'string' ? { uri: source } : source,
-    onLoad: () => { if (startupReady) setLoadedHomeImages(old => ({ ...old, [key]: true })); },
-    onError: () => { if (startupReady) setFailedHomeImages(old => ({ ...old, [key]: true })); },
+    fadeDuration: 0,
+    onError: () => setFailedHomeImages(old => ({ ...old, [key]: true })),
   };
 }
 
@@ -430,7 +433,18 @@ async function loadCatalog() {
     const { data, error } = result;
     if (error) throw error;
     const rows = data || [];
+    hasCatalog.current = true;
     setCatalogRows(rows);
+    // Refresh local image files in the background, independently of navigation.
+    if (!cacheWritePending.current) {
+      cacheWritePending.current = true;
+      const sources = { ...FOOD_IMAGES, ...Object.fromEntries(rows.filter(row => row.image_url).map(row => [row.name, row.image_url])) };
+      saveHomeCatalog(rows, sources, homeCache.current).then(snapshot => {
+        homeCache.current = snapshot;
+        setLocalHomeImages(Object.fromEntries(Object.entries(snapshot.images).map(([name, image]) => [name, { uri: image.uri }])));
+        setFailedHomeImages({});
+      }).catch(() => {}).finally(() => { cacheWritePending.current = false; });
+    }
     setFullMenu(old => ({ ...Object.fromEntries(rows.filter(row => !CATEGORIES.includes(row.name)).map(row => [row.name, []])), ...old }));
     setStartupReady(true);
   } catch (error) {
@@ -440,10 +454,21 @@ async function loadCatalog() {
   }
 }
 useEffect(() => {
-  loadCatalog();
+  let active = true;
+  readHomeCatalog().then(snapshot => {
+    if (!active) return;
+    if (snapshot) {
+      homeCache.current = snapshot;
+      hasCatalog.current = true;
+      setCatalogRows(snapshot.rows);
+      setLocalHomeImages(Object.fromEntries(Object.entries(snapshot.images).map(([name, image]) => [name, { uri: image.uri }])));
+    }
+    setStartupReady(true);
+    loadCatalog();
+  });
   const timer = setInterval(() => { if (AppState.currentState === 'active') loadCatalog(); }, 30000);
   const foreground = AppState.addEventListener('change', state => { if (state === 'active') loadCatalog(); });
-  return () => { clearInterval(timer); foreground.remove(); };
+  return () => { active = false; clearInterval(timer); foreground.remove(); };
 }, []);
 
 const frozenInventory = useFrozenStock(supabase);
@@ -2018,7 +2043,7 @@ function updateFullMenu(category, newItems) {
 
         {!admin && (<>
         <View style={styles.hero}>
-          <Image key={startupReady ? "current-hero" : "pending-hero"} {...homeImageProps("hero", foodImages.Lunch)} style={styles.heroImage} />
+          <Image {...homeImageProps("hero", foodImages.Lunch)} style={styles.heroImage} />
           <View style={styles.heroOverlay}>
             <Text style={styles.heroTitle}>Hemlagad lunch i Kungens Kurva</Text>
             <Text style={styles.heroText}>Välj din mat och betala på plats.</Text>
@@ -2061,7 +2086,6 @@ function updateFullMenu(category, newItems) {
       }}
     >
       <Image
-        key={(startupReady ? 'current:' : 'pending:') + category}
         {...homeImageProps('category:' + category, foodImages[category])}
         style={{
           width: '100%',

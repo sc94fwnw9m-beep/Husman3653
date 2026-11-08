@@ -5,6 +5,7 @@ import { getOrderTimeError } from './order-time';
    import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  ActivityIndicator,
   AppState,
   Image,
   Keyboard,
@@ -396,13 +397,46 @@ export default function App() {
   const [menuAvailable, setMenuAvailable] = useState(false);
 const [fullMenu, setFullMenu] = useState(MENU);
 const [catalogRows, setCatalogRows] = useState([]);
+const [startupReady, setStartupReady] = useState(false);
+const [startupError, setStartupError] = useState(false);
+const catalogRequest = useRef(false);
 const categories = [...CATEGORIES, ...catalogRows.map(row => row.name).filter(name => !CATEGORIES.includes(name))];
 const foodImages = { ...Object.fromEntries(categories.map(name => [name, FOOD_IMAGES.Lunch])), ...FOOD_IMAGES, ...Object.fromEntries(catalogRows.filter(row => row.image_url).map(row => [row.name, row.image_url])) };
 async function loadCatalog() {
-  const { data, error } = await supabase.from('menu_categories').select('name,image_url').order('created_at');
-  if (error) return;
-  setCatalogRows(data || []);
-  setFullMenu(old => ({ ...Object.fromEntries((data || []).filter(row => !CATEGORIES.includes(row.name)).map(row => [row.name, []])), ...old }));
+  if (catalogRequest.current) return;
+  catalogRequest.current = true;
+  setStartupError(false);
+  try {
+    const controller = new AbortController();
+    const requestTimeout = setTimeout(() => controller.abort(), 12000);
+    let result;
+    try {
+      result = await supabase.from('menu_categories')
+        .select('name,image_url').order('created_at').abortSignal(controller.signal);
+    } finally { clearTimeout(requestTimeout); }
+    const { data, error } = result;
+    if (error) throw error;
+    const rows = data || [];
+    const currentImages = { ...FOOD_IMAGES,
+      ...Object.fromEntries(rows.filter(row => row.image_url).map(row => [row.name, row.image_url])) };
+    // Keep the launch screen visible while the current images warm the cache.
+    // A failed/slow image may load later, but must never restore an old URL.
+    let imageTimeout;
+    try {
+      await Promise.race([
+        Promise.allSettled([...new Set(Object.values(currentImages)
+          .filter(value => typeof value === 'string'))].map(uri => Image.prefetch(uri))),
+        new Promise(resolve => { imageTimeout = setTimeout(resolve, 8000); }),
+      ]);
+    } finally { clearTimeout(imageTimeout); }
+    setCatalogRows(rows);
+    setFullMenu(old => ({ ...Object.fromEntries(rows.filter(row => !CATEGORIES.includes(row.name)).map(row => [row.name, []])), ...old }));
+    setStartupReady(true);
+  } catch (error) {
+    setStartupError(true);
+  } finally {
+    catalogRequest.current = false;
+  }
 }
 useEffect(() => {
   loadCatalog();
@@ -1949,6 +1983,23 @@ function updateFullMenu(category, newItems) {
           />
         </ScrollView>
         </KeyboardAvoidingView>
+      </SafeAreaView>
+    );
+  }
+
+  if (!startupReady) {
+    return (
+      <SafeAreaView style={[styles.page, { justifyContent: 'center', alignItems: 'center', padding: 28 }]}>
+        <StatusBar style="dark" />
+        <Image source={require('./assets/icon.png')} style={{ width: 150, height: 150, resizeMode: 'contain' }} />
+        <Text style={{ fontSize: 22, fontWeight: '700', color: '#173249', marginVertical: 20, textAlign: 'center' }}>Husman Lunchrestaurang</Text>
+        {startupError ? <>
+          <Text style={{ textAlign: 'center', marginBottom: 16 }}>Kunde inte hämta innehållet. Kontrollera internetanslutningen.</Text>
+          <AppButton title="Försök igen" onPress={loadCatalog} />
+        </> : <>
+          <ActivityIndicator size="large" color="#173249" />
+          <Text accessibilityLiveRegion="polite" style={{ marginTop: 12 }}>Laddar…</Text>
+        </>}
       </SafeAreaView>
     );
   }

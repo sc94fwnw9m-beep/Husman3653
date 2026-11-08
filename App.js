@@ -398,10 +398,23 @@ export default function App() {
 const [fullMenu, setFullMenu] = useState(MENU);
 const [catalogRows, setCatalogRows] = useState([]);
 const [startupReady, setStartupReady] = useState(false);
+const [loadedHomeImages, setLoadedHomeImages] = useState({});
+const [failedHomeImages, setFailedHomeImages] = useState({});
 const [startupError, setStartupError] = useState(false);
 const catalogRequest = useRef(false);
 const categories = [...CATEGORIES, ...catalogRows.map(row => row.name).filter(name => !CATEGORIES.includes(name))];
 const foodImages = { ...Object.fromEntries(categories.map(name => [name, FOOD_IMAGES.Lunch])), ...FOOD_IMAGES, ...Object.fromEntries(catalogRows.filter(row => row.image_url).map(row => [row.name, row.image_url])) };
+const homeImageKeys = ['hero', ...categories.map(name => 'category:' + name)];
+const homeImagesReady = startupReady && homeImageKeys.every(key => loadedHomeImages[key]);
+function homeImageProps(key, source) {
+  return {
+    source: failedHomeImages[key] ? require('./assets/icon.png')
+      : typeof source === 'string' ? { uri: source } : source,
+    onLoad: () => { if (startupReady) setLoadedHomeImages(old => ({ ...old, [key]: true })); },
+    onError: () => { if (startupReady) setFailedHomeImages(old => ({ ...old, [key]: true })); },
+  };
+}
+
 async function loadCatalog() {
   if (catalogRequest.current) return;
   catalogRequest.current = true;
@@ -417,18 +430,6 @@ async function loadCatalog() {
     const { data, error } = result;
     if (error) throw error;
     const rows = data || [];
-    const currentImages = { ...FOOD_IMAGES,
-      ...Object.fromEntries(rows.filter(row => row.image_url).map(row => [row.name, row.image_url])) };
-    // Keep the launch screen visible while the current images warm the cache.
-    // A failed/slow image may load later, but must never restore an old URL.
-    let imageTimeout;
-    try {
-      await Promise.race([
-        Promise.allSettled([...new Set(Object.values(currentImages)
-          .filter(value => typeof value === 'string'))].map(uri => Image.prefetch(uri))),
-        new Promise(resolve => { imageTimeout = setTimeout(resolve, 8000); }),
-      ]);
-    } finally { clearTimeout(imageTimeout); }
     setCatalogRows(rows);
     setFullMenu(old => ({ ...Object.fromEntries(rows.filter(row => !CATEGORIES.includes(row.name)).map(row => [row.name, []])), ...old }));
     setStartupReady(true);
@@ -1735,6 +1736,9 @@ function updateFullMenu(category, newItems) {
         {appUpdateNotice}
 
         <KeyboardAvoidingView
+          accessibilityElementsHidden={!homeImagesReady}
+          importantForAccessibility={homeImagesReady ? "auto" : "no-hide-descendants"}
+          pointerEvents={homeImagesReady ? "auto" : "none"}
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
@@ -1987,22 +1991,6 @@ function updateFullMenu(category, newItems) {
     );
   }
 
-  if (!startupReady) {
-    return (
-      <SafeAreaView style={[styles.page, { justifyContent: 'center', alignItems: 'center', padding: 28 }]}>
-        <StatusBar style="dark" />
-        <Image source={require('./assets/icon.png')} style={{ width: 150, height: 150, resizeMode: 'contain' }} />
-        <Text style={{ fontSize: 22, fontWeight: '700', color: '#173249', marginVertical: 20, textAlign: 'center' }}>Husman Lunchrestaurang</Text>
-        {startupError ? <>
-          <Text style={{ textAlign: 'center', marginBottom: 16 }}>Kunde inte hämta innehållet. Kontrollera internetanslutningen.</Text>
-          <AppButton title="Försök igen" onPress={loadCatalog} />
-        </> : <>
-          <ActivityIndicator size="large" color="#173249" />
-          <Text accessibilityLiveRegion="polite" style={{ marginTop: 12 }}>Laddar…</Text>
-        </>}
-      </SafeAreaView>
-    );
-  }
 
   return (
     <SafeAreaView style={styles.page}>
@@ -2030,7 +2018,7 @@ function updateFullMenu(category, newItems) {
 
         {!admin && (<>
         <View style={styles.hero}>
-          <Image source={{ uri: foodImages.Lunch }} style={styles.heroImage} />
+          <Image key={startupReady ? "current-hero" : "pending-hero"} {...homeImageProps("hero", foodImages.Lunch)} style={styles.heroImage} />
           <View style={styles.heroOverlay}>
             <Text style={styles.heroTitle}>Hemlagad lunch i Kungens Kurva</Text>
             <Text style={styles.heroText}>Välj din mat och betala på plats.</Text>
@@ -2073,7 +2061,8 @@ function updateFullMenu(category, newItems) {
       }}
     >
       <Image
-        source={typeof foodImages[category] === 'string' ? { uri: foodImages[category] } : foodImages[category]}
+        key={(startupReady ? 'current:' : 'pending:') + category}
+        {...homeImageProps('category:' + category, foodImages[category])}
         style={{
           width: '100%',
           height: 68,
@@ -2968,6 +2957,20 @@ day === item && styles.dayActive,
         )}
       </ScrollView>
         </KeyboardAvoidingView>
+      {!homeImagesReady && (
+      <View style={[styles.page, StyleSheet.absoluteFillObject, { zIndex: 100 }, { justifyContent: 'center', alignItems: 'center', padding: 28 }]}>
+        <StatusBar style="dark" />
+        <Image source={require('./assets/icon.png')} style={{ width: 150, height: 150, resizeMode: 'contain' }} />
+        <Text style={{ fontSize: 22, fontWeight: '700', color: '#173249', marginVertical: 20, textAlign: 'center' }}>Husman Lunchrestaurang</Text>
+        {startupError ? <>
+          <Text style={{ textAlign: 'center', marginBottom: 16 }}>Kunde inte hämta innehållet. Kontrollera internetanslutningen.</Text>
+          <AppButton title="Försök igen" onPress={loadCatalog} />
+        </> : <>
+          <ActivityIndicator size="large" color="#173249" />
+          <Text accessibilityLiveRegion="polite" style={{ marginTop: 12 }}>Laddar…</Text>
+        </>}
+      </View>
+      )}
     </SafeAreaView>
   );
 }

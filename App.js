@@ -1,3 +1,4 @@
+import { useKitchenReminders } from './src/useKitchenReminders';
 import { sendOrderAcceptedPush } from './src/orderAcceptedPush';
 import { readHomeCatalog, saveHomeCatalog } from './src/homeCatalogCache';
 import { getBookingTimeError } from './booking-time';
@@ -685,6 +686,7 @@ const frozenInventory = useFrozenStock(supabase);
   const [orders, setOrders] =
     useState([]);
   const [bookings, setBookings] = useState([]);
+  const kitchenReminderStatus = useKitchenReminders(admin, orders);
   const acknowledgingBookingIds = useRef(new Set());
 
   // Ändra lunchmeny
@@ -759,7 +761,7 @@ const [savingNewDish, setSavingNewDish] = useState(false);
         if (AppState.currentState === 'active') { loadOrders(true); loadBookings(); }
       };
       const channel = supabase.channel('admin-orders-bookings')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, refresh)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, refresh)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, refresh)
         .subscribe();
       const timer = setInterval(refresh, 15000);
@@ -2854,6 +2856,7 @@ day === item && styles.dayActive,
               >
                 Inkommande beställningar
               </Text>
+              {!!kitchenReminderStatus && <Text style={styles.muted}>{kitchenReminderStatus}</Text>}
 
               {orders.length === 0 && (
                 <Text

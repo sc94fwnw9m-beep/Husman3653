@@ -2,7 +2,7 @@ const {PGlite}=require(process.env.LUNCH_DRAW_QA_MODULE || '@electric-sql/pglite
 const fs=require('fs'),assert=require('node:assert/strict');
 (async()=>{
 const db=new PGlite();
-await db.exec(`create role anon; create role authenticated; create function public.is_restaurant_admin() returns boolean language sql as $$select coalesce(current_setting('test.owner',true),'false')='true'$$;`);
+await db.exec(`create role anon; create role authenticated; alter default privileges in schema public grant execute on functions to anon,authenticated; create function public.is_restaurant_admin() returns boolean language sql as $$select coalesce(current_setting('test.owner',true),'false')='true'$$;`);
 await db.exec(fs.readFileSync(__dirname+'/../supabase/migrations/20261110_lunch_prize_draw.sql','utf8'));
 const q=async(sql,args=[])=> (await db.query(sql,args)).rows;
 await assert.rejects(()=>q("select manage_lunch_draw('settings',p_enabled=>true)"),/Ägarbehörighet/);

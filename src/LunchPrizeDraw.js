@@ -76,7 +76,7 @@ export default function LunchPrizeDraw({ client, admin, styles, Button, offerReq
     })},
   ]);
   const winnerSms = r => run(async () => {
-    const text = `Grattis ${r.winner_name}! Du har vunnit 1 dagens lunch att äta på plats hos Husman Lunchrestaurang. Gäller ${r.valid_from}–${r.valid_until}, öppna vardagar kl. 09–14. Vinstkod: ${r.prize_code}. Visa koden i kassan. Vinsten kan användas en gång.`;
+    const text = `Grattis ${r.winner_name}! Du har vunnit 1 dagens lunch att äta på plats hos Husman Lunchrestaurang. Gäller ${r.valid_from}–${r.valid_until}, öppna vardagar kl. 09–14. Öppna Husman-appen på mobilen där du deltog och visa vinsten och vinstkoden i kassan. Vinsten kan användas en gång.`;
     await Linking.openURL(`sms:${r.winner_phone}${Platform.OS==='ios'?'&':'?'}body=${encodeURIComponent(text)}`);
   });
   return <View style={styles.info}>

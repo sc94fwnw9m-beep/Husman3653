@@ -938,7 +938,6 @@ function updateFullMenu(category, newItems) {
         <StatusBar style="dark" />
 
         <ScrollView
-          key="cart"
           contentContainerStyle={
             styles.content
           }
@@ -1152,7 +1151,6 @@ function updateFullMenu(category, newItems) {
       <StatusBar style="dark" />
 
       <ScrollView
-        key="menu"
         contentContainerStyle={
           styles.content
         }

@@ -1,3 +1,4 @@
+import LunchPrizeDraw from './src/LunchPrizeDraw';
 import { useKitchenReminders } from './src/useKitchenReminders';
 import { sendOrderAcceptedPush } from './src/orderAcceptedPush';
 import { readHomeCatalog, saveHomeCatalog } from './src/homeCatalogCache';
@@ -2442,6 +2443,8 @@ day === item && styles.dayActive,
           </>
         )}
 
+        {!admin && <LunchPrizeDraw client={supabase} admin={false} styles={styles} Button={AppButton} />}
+
         {!admin && (
           <View style={styles.info} onLayout={event => {
             offerListPosition.current = event.nativeEvent.layout.y;
@@ -2840,6 +2843,7 @@ day === item && styles.dayActive,
                 </View>
               )}
               {!showAdminSettings && (<>
+              <LunchPrizeDraw client={supabase} admin styles={styles} Button={AppButton} offerRequest={offerRequest} />
               <AppButton
                 title="Uppdatera beställningar"
                 onPress={() => {

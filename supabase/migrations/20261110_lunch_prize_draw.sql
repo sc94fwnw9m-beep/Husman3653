@@ -128,7 +128,7 @@ begin
     order by rr.closes_at desc limit 20) x;
   return result;
 end $$;
-revoke all on function public.lunch_draw_current(),public.enter_lunch_draw(uuid,text,text,boolean,text),public.my_lunch_draw(uuid),public.manage_lunch_draw(text,uuid,text,boolean,uuid) from public;
+revoke all on function public.lunch_draw_current(),public.enter_lunch_draw(uuid,text,text,boolean,text),public.my_lunch_draw(uuid),public.manage_lunch_draw(text,uuid,text,boolean,uuid) from public,anon,authenticated;
 grant execute on function public.lunch_draw_current(),public.enter_lunch_draw(uuid,text,text,boolean,text),public.my_lunch_draw(uuid) to anon,authenticated;
 grant execute on function public.manage_lunch_draw(text,uuid,text,boolean,uuid) to authenticated;
 commit;

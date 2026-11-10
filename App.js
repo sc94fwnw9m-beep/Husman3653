@@ -1,3 +1,4 @@
+import { sendOrderAcceptedPush } from './src/orderAcceptedPush';
 import { readHomeCatalog, saveHomeCatalog } from './src/homeCatalogCache';
 import { getBookingTimeError } from './booking-time';
 import { useAppUpdateNotice } from './AppUpdateNotice';
@@ -1481,6 +1482,10 @@ async function logout() {
       setOrders(current => current.map(item =>
         item.id === order.id ? { ...item, status: 'Accepterad' } : item
       ));
+      const pushAccepted = await sendOrderAcceptedPush(order);
+      if (!pushAccepted) {
+        Alert.alert('Beställningen accepterad', 'Beställningen är accepterad, men kundnotisen kunde inte bekräftas.');
+      }
     } catch (error) {
       Alert.alert('Beställning', 'Beställningen kunde inte accepteras just nu. Försök igen.');
     } finally {

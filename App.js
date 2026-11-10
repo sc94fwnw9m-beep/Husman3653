@@ -1,3 +1,4 @@
+import { readHomeCatalog, saveHomeCatalog } from './src/homeCatalogCache';
 import { getBookingTimeError } from './booking-time';
 import { useAppUpdateNotice } from './AppUpdateNotice';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -5,6 +6,7 @@ import { getOrderTimeError } from './order-time';
    import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  ActivityIndicator,
   AppState,
   Image,
   Keyboard,
@@ -396,19 +398,77 @@ export default function App() {
   const [menuAvailable, setMenuAvailable] = useState(false);
 const [fullMenu, setFullMenu] = useState(MENU);
 const [catalogRows, setCatalogRows] = useState([]);
+const [startupReady, setStartupReady] = useState(false);
+const [localHomeImages, setLocalHomeImages] = useState({});
+const homeCache = useRef(null);
+const cacheWritePending = useRef(false);
+const hasCatalog = useRef(false);
+const [failedHomeImages, setFailedHomeImages] = useState({});
+const [startupError, setStartupError] = useState(false);
+const catalogRequest = useRef(false);
 const categories = [...CATEGORIES, ...catalogRows.map(row => row.name).filter(name => !CATEGORIES.includes(name))];
-const foodImages = { ...Object.fromEntries(categories.map(name => [name, FOOD_IMAGES.Lunch])), ...FOOD_IMAGES, ...Object.fromEntries(catalogRows.filter(row => row.image_url).map(row => [row.name, row.image_url])) };
+const foodImages = { ...Object.fromEntries(categories.map(name => [name, FOOD_IMAGES.Lunch])), ...FOOD_IMAGES, ...Object.fromEntries(catalogRows.filter(row => row.image_url).map(row => [row.name, row.image_url])), ...localHomeImages };
+const homeImagesReady = startupReady;
+function homeImageProps(key, source) {
+  return {
+    source: !hasCatalog.current || failedHomeImages[key] ? require('./assets/icon.png')
+      : typeof source === 'string' ? { uri: source } : source,
+    fadeDuration: 0,
+    onError: () => setFailedHomeImages(old => ({ ...old, [key]: true })),
+  };
+}
+
 async function loadCatalog() {
-  const { data, error } = await supabase.from('menu_categories').select('name,image_url').order('created_at');
-  if (error) return;
-  setCatalogRows(data || []);
-  setFullMenu(old => ({ ...Object.fromEntries((data || []).filter(row => !CATEGORIES.includes(row.name)).map(row => [row.name, []])), ...old }));
+  if (catalogRequest.current) return;
+  catalogRequest.current = true;
+  setStartupError(false);
+  try {
+    const controller = new AbortController();
+    const requestTimeout = setTimeout(() => controller.abort(), 12000);
+    let result;
+    try {
+      result = await supabase.from('menu_categories')
+        .select('name,image_url').order('created_at').abortSignal(controller.signal);
+    } finally { clearTimeout(requestTimeout); }
+    const { data, error } = result;
+    if (error) throw error;
+    const rows = data || [];
+    hasCatalog.current = true;
+    setCatalogRows(rows);
+    // Refresh local image files in the background, independently of navigation.
+    if (!cacheWritePending.current) {
+      cacheWritePending.current = true;
+      const sources = { ...FOOD_IMAGES, ...Object.fromEntries(rows.filter(row => row.image_url).map(row => [row.name, row.image_url])) };
+      saveHomeCatalog(rows, sources, homeCache.current).then(snapshot => {
+        homeCache.current = snapshot;
+        setLocalHomeImages(Object.fromEntries(Object.entries(snapshot.images).map(([name, image]) => [name, { uri: image.uri }])));
+        setFailedHomeImages({});
+      }).catch(() => {}).finally(() => { cacheWritePending.current = false; });
+    }
+    setFullMenu(old => ({ ...Object.fromEntries(rows.filter(row => !CATEGORIES.includes(row.name)).map(row => [row.name, []])), ...old }));
+    setStartupReady(true);
+  } catch (error) {
+    setStartupError(true);
+  } finally {
+    catalogRequest.current = false;
+  }
 }
 useEffect(() => {
-  loadCatalog();
+  let active = true;
+  readHomeCatalog().then(snapshot => {
+    if (!active) return;
+    if (snapshot) {
+      homeCache.current = snapshot;
+      hasCatalog.current = true;
+      setCatalogRows(snapshot.rows);
+      setLocalHomeImages(Object.fromEntries(Object.entries(snapshot.images).map(([name, image]) => [name, { uri: image.uri }])));
+    }
+    setStartupReady(true);
+    loadCatalog();
+  });
   const timer = setInterval(() => { if (AppState.currentState === 'active') loadCatalog(); }, 30000);
   const foreground = AppState.addEventListener('change', state => { if (state === 'active') loadCatalog(); });
-  return () => { clearInterval(timer); foreground.remove(); };
+  return () => { active = false; clearInterval(timer); foreground.remove(); };
 }, []);
 
 const frozenInventory = useFrozenStock(supabase);
@@ -1701,6 +1761,9 @@ function updateFullMenu(category, newItems) {
         {appUpdateNotice}
 
         <KeyboardAvoidingView
+          accessibilityElementsHidden={!homeImagesReady}
+          importantForAccessibility={homeImagesReady ? "auto" : "no-hide-descendants"}
+          pointerEvents={homeImagesReady ? "auto" : "none"}
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
@@ -1953,6 +2016,7 @@ function updateFullMenu(category, newItems) {
     );
   }
 
+
   return (
     <SafeAreaView style={styles.page}>
       <StatusBar style="dark" />
@@ -1979,7 +2043,7 @@ function updateFullMenu(category, newItems) {
 
         {!admin && (<>
         <View style={styles.hero}>
-          <Image source={{ uri: foodImages.Lunch }} style={styles.heroImage} />
+          <Image {...homeImageProps("hero", foodImages.Lunch)} style={styles.heroImage} />
           <View style={styles.heroOverlay}>
             <Text style={styles.heroTitle}>Hemlagad lunch i Kungens Kurva</Text>
             <Text style={styles.heroText}>Välj din mat och betala på plats.</Text>
@@ -2022,7 +2086,7 @@ function updateFullMenu(category, newItems) {
       }}
     >
       <Image
-        source={typeof foodImages[category] === 'string' ? { uri: foodImages[category] } : foodImages[category]}
+        {...homeImageProps('category:' + category, foodImages[category])}
         style={{
           width: '100%',
           height: 68,
@@ -2917,6 +2981,20 @@ day === item && styles.dayActive,
         )}
       </ScrollView>
         </KeyboardAvoidingView>
+      {!homeImagesReady && (
+      <View style={[styles.page, StyleSheet.absoluteFillObject, { zIndex: 100 }, { justifyContent: 'center', alignItems: 'center', padding: 28 }]}>
+        <StatusBar style="dark" />
+        <Image source={require('./assets/icon.png')} style={{ width: 150, height: 150, resizeMode: 'contain' }} />
+        <Text style={{ fontSize: 22, fontWeight: '700', color: '#173249', marginVertical: 20, textAlign: 'center' }}>Husman Lunchrestaurang</Text>
+        {startupError ? <>
+          <Text style={{ textAlign: 'center', marginBottom: 16 }}>Kunde inte hämta innehållet. Kontrollera internetanslutningen.</Text>
+          <AppButton title="Försök igen" onPress={loadCatalog} />
+        </> : <>
+          <ActivityIndicator size="large" color="#173249" />
+          <Text accessibilityLiveRegion="polite" style={{ marginTop: 12 }}>Laddar…</Text>
+        </>}
+      </View>
+      )}
     </SafeAreaView>
   );
 }

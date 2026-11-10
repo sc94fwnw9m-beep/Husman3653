@@ -1,4 +1,4 @@
-name: Publish table booking hours
+name: Publish current images startup screen
 
 jobs:
   update_ios:
@@ -7,4 +7,4 @@ jobs:
     params:
       platform: all
       channel: production
-      message: 'Boka bord under öppettider; catering och fest alla dagar'
+      message: 'Visa logotyp och Laddar innan aktuella matbilder visas'

@@ -121,11 +121,11 @@ begin
   perform public.lunch_draw_current();
   select jsonb_build_object('settings',(select to_jsonb(s) from public.lunch_draw_settings s where id),
     'rounds',coalesce(jsonb_agg(x order by x.closes_at desc),'[]'::jsonb)) into result
-  from (select r.id,r.frequency,r.opens_at,r.closes_at,r.drawn_at,r.prize_code,r.valid_from,r.valid_until,r.redeemed_at,r.announced_at,
-      e.name as winner_name,e.phone as winner_phone,e.public_first_name,
-      (select count(*) from public.lunch_draw_entries where round_id=r.id) as entry_count
-    from public.lunch_draw_rounds r left join public.lunch_draw_entries e on e.receipt=r.winner_entry
-    order by r.closes_at desc limit 20) x;
+  from (select rr.id,rr.frequency,rr.opens_at,rr.closes_at,rr.drawn_at,rr.prize_code,rr.valid_from,rr.valid_until,rr.redeemed_at,rr.announced_at,
+      ee.name as winner_name,ee.phone as winner_phone,ee.public_first_name,
+      (select count(*) from public.lunch_draw_entries where round_id=rr.id) as entry_count
+    from public.lunch_draw_rounds rr left join public.lunch_draw_entries ee on ee.receipt=rr.winner_entry
+    order by rr.closes_at desc limit 20) x;
   return result;
 end $$;
 revoke all on function public.lunch_draw_current(),public.enter_lunch_draw(uuid,text,text,boolean,text),public.my_lunch_draw(uuid),public.manage_lunch_draw(text,uuid,text,boolean,uuid) from public;

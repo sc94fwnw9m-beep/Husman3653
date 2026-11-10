@@ -1773,6 +1773,7 @@ function updateFullMenu(category, newItems) {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
         <ScrollView
+          key="cart"
           ref={messageScrollRef}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={
@@ -2032,6 +2033,7 @@ function updateFullMenu(category, newItems) {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
         <ScrollView
+          key="menu"
           ref={messageScrollRef}
           keyboardShouldPersistTaps="handled"
         contentContainerStyle={

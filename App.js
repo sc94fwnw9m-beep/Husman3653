@@ -235,6 +235,35 @@ function AdminOrderSound({ soundRef, ringing }) {
   return null;
 }
 
+function customerOrderMessage(order) {
+  const text = String(order.message || '').trim();
+  const prefix = `Kund: ${String(order.customer_name || '').trim()}\nTelefon: ${String(order.phone || '').trim()}\nTyp: ${order.order_type || ''}`;
+  if (text === prefix) return '';
+  if (text.startsWith(prefix + '\nMeddelande: ')) return text.slice(prefix.length + '\nMeddelande: '.length).trim();
+  return text;
+}
+
+function orderItemDetails(item) {
+  const bundleQty = Number(item.qty) || 1;
+  if (Array.isArray(item.frozenItems) && item.frozenItems.length) {
+    return {
+      title: `${Number(item.frozenPack) * bundleQty} frysta matlådor`,
+      rows: item.frozenItems.map(dish => ({ name: dish.name, qty: (Number(dish.qty) || 1) * bundleQty })),
+    };
+  }
+  // Older saved orders may contain only the package's generated display name.
+  const legacy = String(item.name || '').match(/^(\d+) fryst(?:a)? matlåd(?:a|or): (.+)$/);
+  if (legacy) {
+    const parts = legacy[2].split(/, (?=\d+ × )/);
+    const rows = parts.map(part => part.match(/^(\d+) × (.+)$/));
+    if (rows.every(Boolean)) return {
+      title: `${Number(legacy[1]) * bundleQty} frysta matlådor`,
+      rows: rows.map(row => ({ qty: Number(row[1]) * bundleQty, name: row[2] })),
+    };
+  }
+  return { title: '', rows: [{ name: item.name, qty: bundleQty }] };
+}
+
 export default function App() {
   const appUpdateNotice = useAppUpdateNotice(supabase);
   const closedDays = useClosedDays(supabase);
@@ -2860,54 +2889,35 @@ day === item && styles.dayActive,
                       'Ny'}
                   </Text>
 
-                  {!!order.customer_name && <Text style={styles.orderDetail}>{order.customer_name}</Text>}
-                  {!!order.phone && <Text style={styles.orderDetail}>Telefon: {order.phone}</Text>}
-                  {!!order.pickup_date && (
-                    <Text style={styles.orderDetail}>
-                      Datum:{' '}
-                      {order.pickup_date}
+                  <View style={styles.orderSummary}>
+                    <Text style={styles.orderWhen}>
+                      {[order.pickup_date, order.pickup_time ? `kl. ${order.pickup_time}` : '', order.order_type].filter(Boolean).join(' · ')}
                     </Text>
-                  )}
+                    {!!order.customer_name && <Text style={styles.orderCustomer}>{order.customer_name}</Text>}
+                    {!!order.phone && <Text style={styles.orderDetail}>Telefon: {order.phone}</Text>}
+                  </View>
 
-                  {!!order.pickup_time && (
-                    <Text style={styles.orderDetail}>
-                      Tid:{' '}
-                      {order.pickup_time}
-                    </Text>
-                  )}
+                  {Array.isArray(order.items) && order.items.map((item, index) => {
+                    const details = orderItemDetails(item);
+                    return (
+                      <View key={`${order.id}-${index}`} style={styles.orderItemGroup}>
+                        {!!details.title && <Text style={styles.orderBundleTitle}>{details.title}</Text>}
+                        {details.rows.map((dish, dishIndex) => (
+                          <View key={dishIndex} style={styles.orderDishRow}>
+                            <Text style={styles.orderDishQty}>{dish.qty} ×</Text>
+                            <Text style={styles.orderDishName}>{dish.name}</Text>
+                          </View>
+                        ))}
+                        {!!item.note?.trim() && <Text style={styles.orderNote}>{item.note.trim()}</Text>}
+                      </View>
+                    );
+                  })}
 
-                  {!!order.order_type && (
-                    <Text style={styles.orderDetail}>
-                      Typ:{' '}
-                      {order.order_type}
-                    </Text>
-                  )}
-
-                  {Array.isArray(
-                    order.items
-                  ) &&
-                    order.items.map(
-                      (item, index) => (
-                        <Text
-                          key={`${order.id}-${index}`}
-                          style={styles.orderDish}
-                        >
-                          • {item.qty} ×{' '}
-                          {item.name}
-                          {!!item.note?.trim() && ` — ${item.note.trim()}`}
-                        </Text>
-                      )
-                    )}
-
-                  {!!order.message && (
-                    <Text
-                      style={
-                        [styles.orderMessage, styles.orderDetail]
-                      }
-                    >
-                      Meddelande:{' '}
-                      {order.message}
-                    </Text>
+                  {!!customerOrderMessage(order) && (
+                    <View style={styles.orderSummary}>
+                      <Text style={styles.orderBundleTitle}>Meddelande</Text>
+                      <Text style={styles.orderDetail}>{customerOrderMessage(order)}</Text>
+                    </View>
                   )}
 
                   <Text
@@ -3491,12 +3501,21 @@ const styles = StyleSheet.create({
   orderSummary: { padding: 18, borderRadius: 16, backgroundColor: '#d9ecff', marginBottom: 8 },
   orderSummaryTitle: { fontSize: 25, fontWeight: '900', color: '#102b49' },
   orderSummaryCount: { fontSize: 32, fontWeight: '900', color: BLUE, marginVertical: 6 },
-  foodOrderTitle: { fontSize: 24 },
+  foodOrderTitle: { fontSize: 22 },
   foodOrderTotal: { fontSize: 22 },
-  foodOrderCard: { padding: 20, borderWidth: 2, marginBottom: 18 },
+  foodOrderCard: { padding: 16, borderWidth: 1, marginBottom: 18 },
   newFoodOrderCard: { borderColor: GOLD, backgroundColor: '#eaf5ff' },
-  orderStatus: { fontSize: 20, fontWeight: '900', color: BLUE, marginBottom: 10 },
+  orderStatus: { fontSize: 16, fontWeight: '700', color: BLUE, marginBottom: 10 },
   orderDetail: { fontSize: 18, lineHeight: 26, color: '#102b49', marginBottom: 4 },
+  orderSummary: { marginVertical: 8 },
+  orderWhen: { fontSize: 16, lineHeight: 24, fontWeight: '700', color: '#102b49', marginBottom: 8 },
+  orderCustomer: { fontSize: 18, lineHeight: 26, fontWeight: '700', color: '#102b49' },
+  orderItemGroup: { marginVertical: 8 },
+  orderBundleTitle: { fontSize: 17, lineHeight: 25, fontWeight: '700', color: '#102b49', marginBottom: 4 },
+  orderDishRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#e0eaf4' },
+  orderDishQty: { minWidth: 44, fontSize: 17, lineHeight: 25, fontWeight: '700', color: '#102b49', paddingRight: 8 },
+  orderDishName: { flex: 1, fontSize: 17, lineHeight: 25, color: '#102b49' },
+  orderNote: { fontSize: 16, lineHeight: 24, color: '#315574', marginTop: 6 },
   orderDish: { fontSize: 20, lineHeight: 28, fontWeight: '800', color: '#102b49', marginTop: 10 },
   orderCard: {
     backgroundColor: '#ffffff',

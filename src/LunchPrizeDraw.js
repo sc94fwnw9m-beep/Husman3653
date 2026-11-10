@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, AppState, Linking, Platform, Switch, Text, TextInput, View } from 'react-native';
+import { Alert, AppState, Image, Linking, Platform, Pressable, Switch, Text, TextInput, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const RECEIPTS = 'husman-lunch-draw-receipts-v1';
@@ -79,8 +79,23 @@ export default function LunchPrizeDraw({ client, admin, styles, Button, offerReq
     const text = `Grattis ${r.winner_name}! Du har vunnit 1 dagens lunch att äta på plats hos Husman Lunchrestaurang. Gäller ${r.valid_from}–${r.valid_until}, öppna vardagar kl. 09–14. Öppna Husman-appen på mobilen där du deltog och visa vinsten och vinstkoden i kassan. Vinsten kan användas en gång.`;
     await Linking.openURL(`sms:${r.winner_phone}${Platform.OS==='ios'?'&':'?'}body=${encodeURIComponent(text)}`);
   });
-  return <View style={styles.info}>
-    <Button title={expanded ? 'Stäng lunchtävlingen' : '🎁 Vinn en lunch!'} onPress={() => setExpanded(!expanded)} />
+  return <View style={[styles.info, !expanded && { backgroundColor: 'transparent', padding: 0 }]}>
+    {expanded ? <Button title="Stäng lunchtävlingen" onPress={() => setExpanded(false)} /> : (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Vinn en lunch! Delta gratis"
+        accessibilityHint="Öppnar lunchtävlingen"
+        onPress={() => setExpanded(true)}
+        style={({ pressed }) => [styles.button, { overflow: 'hidden', opacity: pressed ? 0.8 : 1 }]}
+      >
+        <View pointerEvents="none" accessible={false} style={{ position: 'absolute', top: 0, bottom: 0, right: 0, width: '43%', overflow: 'hidden' }}>
+          <Image source={require('../assets/lunch-prize-button.jpg')} accessible={false}
+            resizeMode="cover" style={{ position: 'absolute', right: 0, top: 0, width: '240%', height: '100%' }} />
+          <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 14, backgroundColor: 'rgba(18, 46, 66, 0.55)' }} />
+        </View>
+        <Text style={[styles.buttonText, { textAlign: 'left', width: '65%' }]}>Vinn en lunch! →</Text>
+      </Pressable>
+    )}
     {expanded && <>
       <Text style={styles.heading}>{admin ? 'Lunchtävling · Ägarläge' : 'Din nästa lunch kan bli en vinst!'}</Text>
       {!!error && <Text accessibilityRole="alert" style={styles.muted}>{error}</Text>}

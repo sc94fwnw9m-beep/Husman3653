@@ -304,6 +304,8 @@ export default function App() {
   const acceptingOrderIds = useRef(new Set());
   const deletingBookingIds = useRef(new Set());
   const [section, setSection] = useState('Lunch');
+  const [lunchDrawOpen, setLunchDrawOpen] = useState(false);
+  const openLunchDraw = () => { setLunchDrawOpen(true); setShowCart(false); messageScrollRef.current?.scrollTo({ y: 0, animated: true }); };
    const [expoPushToken, setExpoPushToken] = useState('');
   const [offerEnabled, setOfferEnabled] = useState(null);
   const [customerOffers, setCustomerOffers] = useState([]);
@@ -1812,7 +1814,7 @@ function updateFullMenu(category, newItems) {
             styles.content
           }
         >
-          <Header onAdminOpen={() => setShowAdminLogin(true)} />
+          <Header onAdminOpen={() => setShowAdminLogin(true)} onLunchDraw={openLunchDraw} />
           <ClosedDaysNotice {...closedDays} styles={styles} />
 
           <Text style={styles.heading}>
@@ -2072,7 +2074,8 @@ function updateFullMenu(category, newItems) {
           styles.content
         }
       >
-        <Header onAdminOpen={() => setShowAdminLogin(true)} />
+        <Header onAdminOpen={() => setShowAdminLogin(true)} onLunchDraw={openLunchDraw} />
+        {!admin && <LunchPrizeDraw client={supabase} admin={false} styles={styles} Button={AppButton} expanded={lunchDrawOpen} onExpandedChange={setLunchDrawOpen} hideTrigger />}
           <ClosedDaysNotice {...closedDays} styles={styles} />
         {admin && <AdminOrderSound soundRef={orderSound}
           ringing={orders.some(order => (order.status || 'Ny') === 'Ny'
@@ -2443,7 +2446,6 @@ day === item && styles.dayActive,
           </>
         )}
 
-        {!admin && <LunchPrizeDraw client={supabase} admin={false} styles={styles} Button={AppButton} />}
 
         {!admin && (
           <View style={styles.info} onLayout={event => {
@@ -3023,16 +3025,25 @@ day === item && styles.dayActive,
   );
 }
 
-function Header({ onAdminOpen }) {
+function Header({ onAdminOpen, onLunchDraw }) {
   return (
-    <Pressable style={styles.header} onPress={onAdminOpen}>
+    <View style={styles.header}>
       <View style={styles.brandRow}>
         <View style={styles.brandSide}>
-          <View style={styles.sloganBadge}>
-            <Text style={styles.sloganText}>God mat.{'\n'}Bara ett tryck bort.</Text>
-          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Vinn en lunch! Tryck här för att delta"
+            accessibilityHint="Öppnar lunchtävlingen"
+            onPress={onLunchDraw}
+            style={({ pressed }) => [styles.sloganBadge, { opacity: pressed ? 0.75 : 1 }]}
+          >
+            <Text style={styles.sloganText}>🎉 VINN EN{'\n'}LUNCH!</Text>
+            <Text style={styles.sloganAction}>Tryck här för{'\n'}att delta →</Text>
+          </Pressable>
         </View>
-        <Image source={require('./assets/icon.png')} style={[styles.logo, { marginBottom: 0 }]} />
+        <Pressable onPress={onAdminOpen} accessibilityRole="button" accessibilityLabel="För restaurangen">
+          <Image source={require('./assets/icon.png')} style={[styles.logo, { marginBottom: 0 }]} />
+        </Pressable>
         <View style={[styles.brandSide, { alignItems: 'flex-end', paddingRight: 0, paddingLeft: 12 }]}>
           <View accessible accessibilityRole="image" accessibilityLabel="Svenska flaggan" style={styles.swedishFlag}>
             <View style={styles.flagHorizontal} />
@@ -3047,7 +3058,7 @@ function Header({ onAdminOpen }) {
       <Text style={styles.open}>
         Måndag–fredag 08:00–14:00
       </Text>
-    </Pressable>
+    </View>
   );
 }
 
@@ -3120,8 +3131,9 @@ const GOLD = '#d6b46b';
 const styles = StyleSheet.create({
   brandRow: { width: '100%', flexDirection: 'row', alignItems: 'center', marginBottom: 9 },
   brandSide: { flex: 1, alignItems: 'flex-start', paddingRight: 12 },
-  sloganBadge: { backgroundColor: '#14344f', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, maxWidth: '100%' },
-  sloganText: { color: GOLD, fontSize: 14, lineHeight: 18, fontWeight: '800' },
+  sloganBadge: { backgroundColor: '#d7b565', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, width: '100%', maxWidth: 130, minHeight: 68, justifyContent: 'center' },
+  sloganText: { color: '#14344f', fontSize: 12, lineHeight: 14, fontWeight: '900' },
+  sloganAction: { color: '#14344f', fontSize: 11, lineHeight: 11, fontWeight: '700', marginTop: 3 },
   swedishFlag: { width: 70, height: 38, maxWidth: '100%', backgroundColor: '#143f65', borderRadius: 6, overflow: 'hidden' },
   flagHorizontal: { position: 'absolute', top: '40%', left: 0, right: 0, height: '20%', backgroundColor: GOLD },
   flagVertical: { position: 'absolute', top: 0, bottom: 0, left: '32%', width: '13%', backgroundColor: GOLD },

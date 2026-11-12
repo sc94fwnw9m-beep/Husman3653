@@ -1,3 +1,4 @@
+import HomeFoodCarousel from './src/HomeFoodCarousel';
 import headerLogoNavy from './src/headerLogoNavy';
 import LunchPrizeDraw from './src/LunchPrizeDraw';
 import { useKitchenReminders } from './src/useKitchenReminders';
@@ -2085,9 +2086,7 @@ function updateFullMenu(category, newItems) {
               && seenBookingsAtLogin.current !== null && !seenBookingsAtLogin.current.has(String(booking.id)))} />}
 
         {!admin && (<>
-        <View style={styles.hero}>
-          <Image {...homeImageProps("hero", foodImages.Lunch)} style={styles.heroImage} />
-        </View>
+        <HomeFoodCarousel style={styles.hero} active={homeImagesReady} />
 
         <View style={[styles.info, { backgroundColor: '#143f65' }]}>
           <Text style={[styles.infoText, { color: GOLD }]}>

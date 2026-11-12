@@ -2087,20 +2087,16 @@ function updateFullMenu(category, newItems) {
         {!admin && (<>
         <View style={styles.hero}>
           <Image {...homeImageProps("hero", foodImages.Lunch)} style={styles.heroImage} />
-          <View style={styles.heroOverlay}>
-            <Text style={styles.heroTitle}>Hemlagad lunch i Kungens Kurva</Text>
-            <Text style={styles.heroText}>Välj din mat och betala på plats.</Text>
-          </View>
         </View>
 
-        <View style={styles.info}>
+        <View style={[styles.info, { backgroundColor: '#143f65' }]}>
           <Text style={[styles.infoText, { color: GOLD }]}>
             Beställ i appen • Betala på
             restaurangen
           </Text>
         </View>
 
-        <View style={styles.info}>
+        <View style={[styles.info, { backgroundColor: '#143f65' }]}>
           <Text style={[styles.infoText, { color: GOLD }]}>
             Inkl. smör, bröd, dryck, kaffe, hembakt bröd, salladsbuffé, te, kaka och soppa
             {'\n'}Lunchhäfte: köp 10 luncher – 11:e lunchen gratis

@@ -2089,9 +2089,11 @@ function updateFullMenu(category, newItems) {
         <HomeFoodCarousel style={styles.hero} active={homeImagesReady} />
 
         <View style={[styles.info, { backgroundColor: '#143f65' }]}>
-          <Text style={[styles.infoText, { color: GOLD }]}>
-            Beställ i appen • Betala på
-            restaurangen
+          <Text style={[styles.infoText, { color: GOLD, fontSize: 14, fontWeight: '900' }]}>
+            BESTÄLL I APPEN – BETALA I KASSAN
+          </Text>
+          <Text style={[styles.infoText, { color: '#ffffff', fontSize: 15, marginTop: 6 }]}>
+            Ingen betalning sker i appen.
           </Text>
         </View>
 

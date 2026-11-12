@@ -3131,9 +3131,9 @@ const GOLD = '#d6b46b';
 const styles = StyleSheet.create({
   brandRow: { width: '100%', flexDirection: 'row', alignItems: 'center', marginBottom: 9 },
   brandSide: { flex: 1, alignItems: 'flex-start', paddingRight: 12 },
-  sloganBadge: { backgroundColor: '#d7b565', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, width: '100%', maxWidth: 130, minHeight: 68, justifyContent: 'center' },
-  sloganText: { color: '#14344f', fontSize: 12, lineHeight: 14, fontWeight: '900' },
-  sloganAction: { color: '#14344f', fontSize: 11, lineHeight: 11, fontWeight: '700', marginTop: 3 },
+  sloganBadge: { backgroundColor: '#14344f', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, width: '100%', maxWidth: 130, minHeight: 68, justifyContent: 'center' },
+  sloganText: { color: GOLD, fontSize: 12, lineHeight: 14, fontWeight: '900' },
+  sloganAction: { color: GOLD, fontSize: 11, lineHeight: 11, fontWeight: '700', marginTop: 3 },
   swedishFlag: { width: 70, height: 38, maxWidth: '100%', backgroundColor: '#143f65', borderRadius: 6, overflow: 'hidden' },
   flagHorizontal: { position: 'absolute', top: '40%', left: 0, right: 0, height: '20%', backgroundColor: GOLD },
   flagVertical: { position: 'absolute', top: 0, bottom: 0, left: '32%', width: '13%', backgroundColor: GOLD },

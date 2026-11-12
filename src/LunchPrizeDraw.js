@@ -10,8 +10,10 @@ export function publicWinnerText(round) {
     : 'En lunchvinnare hos Husman är utsedd! 🎉 Vinnaren får besked separat. Delta gratis i nästa omgång i appen – inget köp krävs.';
 }
 
-export default function LunchPrizeDraw({ client, admin, styles, Button, offerRequest }) {
-  const [expanded, setExpanded] = useState(false);
+export default function LunchPrizeDraw({ client, admin, styles, Button, offerRequest, expanded: controlledExpanded, onExpandedChange, hideTrigger = false }) {
+  const [localExpanded, setLocalExpanded] = useState(false);
+  const expanded = controlledExpanded ?? localExpanded;
+  const setExpanded = onExpandedChange ?? setLocalExpanded;
   const [round, setRound] = useState(null);
   const [owner, setOwner] = useState(null);
   const [name, setName] = useState('');
@@ -79,6 +81,7 @@ export default function LunchPrizeDraw({ client, admin, styles, Button, offerReq
     const text = `Grattis ${r.winner_name}! Du har vunnit 1 dagens lunch att äta på plats hos Husman Lunchrestaurang. Gäller ${r.valid_from}–${r.valid_until}, öppna vardagar kl. 09–14. Öppna Husman-appen på mobilen där du deltog och visa vinsten och vinstkoden i kassan. Vinsten kan användas en gång.`;
     await Linking.openURL(`sms:${r.winner_phone}${Platform.OS==='ios'?'&':'?'}body=${encodeURIComponent(text)}`);
   });
+  if (hideTrigger && !expanded) return null;
   return <View style={[styles.info, !expanded && { backgroundColor: 'transparent', padding: 0 }]}>
     {expanded ? <Button title="Stäng lunchtävlingen" onPress={() => setExpanded(false)} /> : (
       <Pressable

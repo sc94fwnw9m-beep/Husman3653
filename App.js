@@ -1,3 +1,4 @@
+import headerLogoNavy from './src/headerLogoNavy';
 import LunchPrizeDraw from './src/LunchPrizeDraw';
 import { useKitchenReminders } from './src/useKitchenReminders';
 import { sendOrderAcceptedPush } from './src/orderAcceptedPush';
@@ -3037,12 +3038,12 @@ function Header({ onAdminOpen, onLunchDraw }) {
             onPress={onLunchDraw}
             style={({ pressed }) => [styles.sloganBadge, { opacity: pressed ? 0.75 : 1 }]}
           >
-            <Text style={styles.sloganText}>VINN EN LUNCH!</Text>
+            <Text style={styles.sloganText}>VINN EN{'\n'}LUNCH!</Text>
             <Text style={styles.sloganAction}>Tryck här för{'\n'}att delta →</Text>
           </Pressable>
         </View>
         <Pressable onPress={onAdminOpen} accessibilityRole="button" accessibilityLabel="För restaurangen">
-          <Image source={require('./assets/icon.png')} style={[styles.logo, { marginBottom: 0 }]} />
+          <Image source={headerLogoNavy} style={[styles.logo, { marginBottom: 0 }]} />
         </Pressable>
         <View style={[styles.brandSide, { alignItems: 'flex-end', paddingRight: 0, paddingLeft: 12 }]}>
           <View accessible accessibilityRole="image" accessibilityLabel="Svenska flaggan" style={styles.swedishFlag}>
@@ -3131,10 +3132,10 @@ const GOLD = '#d6b46b';
 const styles = StyleSheet.create({
   brandRow: { width: '100%', flexDirection: 'row', alignItems: 'center', marginBottom: 9 },
   brandSide: { flex: 1, alignItems: 'flex-start', paddingRight: 12 },
-  sloganBadge: { backgroundColor: '#14344f', borderRadius: 6, paddingHorizontal: 3, paddingVertical: 2, width: 70, height: 38, maxWidth: '100%', justifyContent: 'center', alignItems: 'center' },
-  sloganText: { color: GOLD, fontSize: 8, lineHeight: 10, fontWeight: '900', textAlign: 'center' },
-  sloganAction: { color: GOLD, fontSize: 8, lineHeight: 9, fontWeight: '700', marginTop: 1, textAlign: 'center' },
-  swedishFlag: { width: 70, height: 38, maxWidth: '100%', backgroundColor: '#143f65', borderRadius: 6, overflow: 'hidden' },
+  sloganBadge: { backgroundColor: '#143f65', borderRadius: 10, paddingHorizontal: 4, paddingVertical: 4, width: 108, height: 60, maxWidth: '100%', justifyContent: 'center', alignItems: 'center' },
+  sloganText: { color: GOLD, fontSize: 12, lineHeight: 14, fontWeight: '900', textAlign: 'center' },
+  sloganAction: { color: GOLD, fontSize: 10, lineHeight: 12, fontWeight: '700', textAlign: 'center' },
+  swedishFlag: { width: 108, height: 60, maxWidth: '100%', backgroundColor: '#143f65', borderRadius: 10, overflow: 'hidden' },
   flagHorizontal: { position: 'absolute', top: '40%', left: 0, right: 0, height: '20%', backgroundColor: GOLD },
   flagVertical: { position: 'absolute', top: 0, bottom: 0, left: '32%', width: '13%', backgroundColor: GOLD },
 

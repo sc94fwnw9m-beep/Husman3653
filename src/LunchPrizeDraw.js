@@ -135,8 +135,10 @@ export default function LunchPrizeDraw({ client, admin, styles, Button, offerReq
           <Text>Öppnar {localDate(round.opens_at)} · Stänger {localDate(round.closes_at)}</Text>
           <Text style={styles.muted}>Vinnaren dras av restaurangen efter stängning.</Text>
           {results.some(r=>r.round_id===round.id) ? <Text style={styles.success}>✓ Du deltar i denna omgång.</Text> : clock>=new Date(round.opens_at).getTime() && clock<new Date(round.closes_at).getTime() && <>
-            <TextInput style={styles.field} accessibilityLabel="Ditt namn" placeholder="Ditt namn" value={name} onChangeText={setName} maxLength={80} />
-            <TextInput style={styles.field} accessibilityLabel="Telefonnummer" placeholder="Telefonnummer" value={phone} onChangeText={setPhone} keyboardType="phone-pad" maxLength={30} />
+            <Text style={[styles.label, { color: '#102b49', marginTop: 12 }]}>Namn</Text>
+            <TextInput style={[styles.field, { color: '#102b49', backgroundColor: '#ffffff' }]} accessibilityLabel="Namn" placeholder="Skriv ditt namn" placeholderTextColor="#526579" value={name} onChangeText={setName} autoComplete="name" maxLength={80} />
+            <Text style={[styles.label, { color: '#102b49' }]}>Telefonnummer</Text>
+            <TextInput style={[styles.field, { color: '#102b49', backgroundColor: '#ffffff' }]} accessibilityLabel="Telefonnummer" placeholder="Skriv ditt telefonnummer" placeholderTextColor="#526579" value={phone} onChangeText={setPhone} autoComplete="tel" keyboardType="phone-pad" maxLength={30} />
             <View style={{flexDirection:'row',alignItems:'center',gap:8}}><Switch value={agreed} onValueChange={setAgreed} accessibilityLabel="Jag godkänner tävlingsreglerna" /><Text style={{flex:1}}>Jag godkänner tävlingsreglerna.</Text></View>
             <View style={{flexDirection:'row',alignItems:'center',gap:8}}><Switch value={publicName} onValueChange={setPublicName} accessibilityLabel="Mitt förnamn får visas om jag vinner, frivilligt" /><Text style={{flex:1}}>Mitt förnamn får visas om jag vinner (frivilligt).</Text></View>
             <Button title="Delta gratis" onPress={enter} />

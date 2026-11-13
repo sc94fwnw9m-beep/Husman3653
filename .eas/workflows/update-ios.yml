@@ -1,4 +1,4 @@
-name: Publish current images startup screen
+name: Publish lunch draw field labels
 
 jobs:
   update_ios:
@@ -7,4 +7,4 @@ jobs:
     params:
       platform: all
       channel: production
-      message: 'Visa logotyp och Laddar innan aktuella matbilder visas'
+      message: 'Tydliga rubriker för namn och telefonnummer i lunchtävlingen'

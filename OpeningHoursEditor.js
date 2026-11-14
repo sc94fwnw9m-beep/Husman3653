@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Alert, Text, TextInput, View } from 'react-native';
 import { HOURS_DAYS, validHours } from './opening-hours';
-export default function OpeningHoursEditor({ client, current, notice, styles, Button }) {
+export default function OpeningHoursEditor({ client, current, notice, onSaved, styles, Button }) {
  const [draft,setDraft]=useState(null),[note,setNote]=useState(''),[saving,setSaving]=useState(false);
  const patch=(i,values)=>setDraft(old=>old.map((h,j)=>j===i?{...h,...values}:h));
  if(!draft)return <Button title="Ändra öppettider" outline onPress={()=>{setDraft(current.map(h=>({...h})));setNote(notice)}} />;
@@ -12,7 +12,7 @@ export default function OpeningHoursEditor({ client, current, notice, styles, Bu
   try {
    const {data,error}=await client.from('restaurant_opening_hours').update({hours:draft,notice:note}).eq('id',1).select('id');
    if(error||!data?.length)throw error||Error();
-   setDraft(null);Alert.alert('Sparat','Öppettiderna är sparade för appen och hemsidan. Visningen uppdateras automatiskt.');
+   await onSaved?.();setDraft(null);Alert.alert('Sparat','Öppettiderna är sparade för appen och hemsidan. Visningen uppdateras automatiskt.');
   }catch{Alert.alert('Öppettider','Kunde inte spara. Dina ändringar finns kvar. Kontrollera att du är inloggad som ägare och försök igen.');}
   finally{setSaving(false)}
  };

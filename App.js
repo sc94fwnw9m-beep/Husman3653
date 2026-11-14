@@ -1,3 +1,4 @@
+import OpeningHoursEditor from './OpeningHoursEditor';
 import HomeFoodCarousel from './src/HomeFoodCarousel';
 import headerLogoNavy from './src/headerLogoNavy';
 import LunchPrizeDraw from './src/LunchPrizeDraw';
@@ -1095,7 +1096,7 @@ async function loadPublishedMenu() {
       return;
     }
 
-    const timeError = getOrderTimeError(orderDate.trim(), orderTime.trim());
+    const timeError = getOrderTimeError(orderDate.trim(), orderTime.trim(), new Date(), openingHours.hours);
     if (timeError) { Alert.alert('Beställning', timeError); return; }
 
     const lunchError = lunchReservationError(cart, orderDate.trim());
@@ -1140,7 +1141,7 @@ async function loadPublishedMenu() {
 
       Alert.alert(
         'Beställning',
-        error.message?.includes('ORDER_CLOSED') ? 'Restaurangen är stängd lördag och söndag. Välj en vardag.' : error.message?.includes('ORDER_TIME_INVALID') ? 'Datumet eller tiden har passerat. Välj ett nytt datum och en kommande tid.' : error.message?.includes('FROZEN_STOCK') ? 'En eller flera matlådor har tagit slut eller räcker inte. Välj matlådorna igen.' : error.message?.includes('RESTAURANT_CLOSED')
+        error.message?.includes('ORDER_CLOSED') ? 'Välj en tid inom restaurangens aktuella öppettider.' : error.message?.includes('ORDER_TIME_INVALID') ? 'Datumet eller tiden har passerat. Välj ett nytt datum och en kommande tid.' : error.message?.includes('FROZEN_STOCK') ? 'En eller flera matlådor har tagit slut eller räcker inte. Välj matlådorna igen.' : error.message?.includes('RESTAURANT_CLOSED')
           ? 'Restaurangen är stängd det datumet. Välj ett annat datum.'
           : 'Beställningen kunde inte skickas just nu.'
       );
@@ -2013,7 +2014,7 @@ function updateFullMenu(category, newItems) {
                 setShowOrderDatePicker(Platform.OS === 'ios');
                 if (selected) {
                   const selectedDate = formatDate(selected);
-                  const error = getOrderTimeError(selectedDate, '23:59');
+                  const error = getOrderTimeError(selectedDate, '23:59', new Date(), null);
                   if (error) { Alert.alert('Beställning', error); return; }
                   setOrderTime('');
                   selectAvailableDate(selected, setOrderDate);
@@ -2030,9 +2031,9 @@ function updateFullMenu(category, newItems) {
   {openingSlots(openingHours.hours, orderDate).map((time) => (
    <TouchableOpacity
   key={time}
-  disabled={Boolean(getOrderTimeError(orderDate, time))}
+  disabled={Boolean(getOrderTimeError(orderDate, time, new Date(), openingHours.hours))}
   style={[
-    getOrderTimeError(orderDate, time) && { opacity: 0.35 },
+    getOrderTimeError(orderDate, time, new Date(), openingHours.hours) && { opacity: 0.35 },
     styles.pickerButton,
     orderTime === time && styles.timeButtonActive,
   ]}
@@ -2587,6 +2588,7 @@ day === item && styles.dayActive,
                   <ClosedDaysAdmin client={supabase} closures={closedDays.closures}
                     refresh={closedDays.refresh} styles={styles} Button={AppButton} />
                   <Text style={styles.adminTitle}>Inställningar</Text>
+                  <OpeningHoursEditor client={supabase} current={openingHours.hours} notice={openingHours.hoursNotice} styles={styles} Button={AppButton} />
                   <AppButton title="Ändra öppettider • app och hemsida" outline onPress={() => {
                     Linking.openURL(HOURS_ADMIN_URL).catch(() => Alert.alert('Öppettider', 'Öppna www.husman-lunch.se och välj Logga in längst ned.'));
                   }} />

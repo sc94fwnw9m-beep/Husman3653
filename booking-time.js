@@ -1,16 +1,17 @@
+import { DEFAULT_HOURS, hoursForDate, openingTimeError } from './opening-hours.js';
 import { validDate } from './closures.js';
 import { getOrderTimeError } from './order-time.js';
 
-export function getBookingTimeError(date, time, kind = 'table', now = new Date()) {
+export function getBookingTimeError(date, time, kind = 'table', now = new Date(), hours = DEFAULT_HOURS) {
   if (!validDate(date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
     return 'Välj ett giltigt datum och en tid (HH:MM).';
   }
   if (kind !== 'event') {
     const error = getOrderTimeError(date, time, now);
     if (error) return error;
-    if (time < '08:00' || time >= '14:00') {
-      return 'Bord kan bokas måndag–fredag 08:00–14:00. Välj en tid före stängning.';
-    }
+    const openingError = openingTimeError(hours, date, time);
+    if (openingError) return openingError;
+    if (time >= hoursForDate(hours, date).close) return 'Välj en tid före stängning.';
     return null;
   }
   const parts = Object.fromEntries(new Intl.DateTimeFormat('sv-SE', {
@@ -21,3 +22,4 @@ export function getBookingTimeError(date, time, kind = 'table', now = new Date()
   return `${date}T${time}:00` <= current
     ? 'Datumet eller tiden har passerat. Välj ett nytt datum och en kommande tid.' : null;
 }
+

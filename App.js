@@ -1,3 +1,4 @@
+import { DEFAULT_HOURS, hoursSummary, hoursForDate, openingSlots, openingTimeError, fetchOpeningHours } from './opening-hours';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getOrderTimeError } from './order-time';
    import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -230,24 +231,7 @@ function AdminOrderSound({ soundRef, ringing }) {
   return null;
 }
 
-const HOURS_URL = 'https://www.husman-lunch.se/api/content';
 const HOURS_ADMIN_URL = 'https://www.husman-lunch.se/#admin';
-const HOURS_DAYS = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
-const DEFAULT_HOURS = HOURS_DAYS.map((_, i) => ({ closed: i > 4, open: '08:00', close: '14:00' }));
-function validHours(hours) {
-  return Array.isArray(hours) && hours.length === 7 && hours.every(h => h &&
-    typeof h.closed === 'boolean' && /^([01]\d|2[0-3]):[0-5]\d$/.test(h.open) &&
-    /^([01]\d|2[0-3]):[0-5]\d$/.test(h.close) && (h.closed || h.open < h.close));
-}
-function hoursSummary(hours) {
-  const groups = [];
-  hours.forEach((h, i) => {
-    const last = groups[groups.length - 1];
-    if (last && last.h.closed === h.closed && (h.closed || (last.h.open === h.open && last.h.close === h.close))) last.end = i;
-    else groups.push({ start: i, end: i, h });
-  });
-  return groups.map(g => `${HOURS_DAYS[g.start]}${g.end !== g.start ? '–' + HOURS_DAYS[g.end] : ''}: ${g.h.closed ? 'Stängt' : g.h.open + '–' + g.h.close}`).join(' • ');
-}
 function useOpeningHours() {
   const [hours, setHours] = useState(DEFAULT_HOURS);
   const [notice, setNotice] = useState('');
@@ -255,27 +239,21 @@ function useOpeningHours() {
   useEffect(() => {
     let active = true;
     const refresh = async () => {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
       try {
-        const response = await fetch(HOURS_URL, { signal: controller.signal, cache: 'no-store' });
-        if (!response.ok) throw new Error();
-        const content = await response.json();
-        const next = content.openingHours === undefined ? DEFAULT_HOURS : content.openingHours;
-        if (!validHours(next)) throw new Error();
+        const { hours: next, notice } = await fetchOpeningHours();
         if (active) {
-          setHours(next); setNotice(typeof content.hoursNotice === 'string' ? content.hoursNotice : ''); setHoursError('');
+          setHours(next); setNotice(notice); setHoursError('');
         }
       } catch {
         if (active) setHoursError('Öppettiderna kunde inte uppdateras. Kontrollera hemsidan eller ring restaurangen.');
-      } finally { clearTimeout(timeout); }
+      }
     };
     refresh();
     const foreground = AppState.addEventListener('change', state => { if (state === 'active') refresh(); });
     const timer = setInterval(() => { if (AppState.currentState === 'active') refresh(); }, 60000);
     return () => { active = false; foreground.remove(); clearInterval(timer); };
   }, []);
-  return { hoursText: hoursSummary(hours), hoursNotice: notice, hoursError };
+  return { hours, hoursText: hoursSummary(hours), hoursNotice: notice, hoursError };
 }
 
 export default function App() {
@@ -1028,6 +1006,9 @@ async function loadPublishedMenu() {
 
     orderSubmitInProgress.current = true;
     try {
+    const latestHours = await fetchOpeningHours();
+    const openingError = openingTimeError(latestHours.hours, orderDate.trim(), orderTime.trim());
+    if (openingError) { Alert.alert('Beställning', openingError); return; }
     const frozenError = await checkFrozenCart(supabase, cart);
     if (frozenError) { Alert.alert('Frysta matlådor', frozenError); return; }
     const availability = await checkOpenDate(supabase, orderDate.trim());
@@ -1107,10 +1088,13 @@ async function loadPublishedMenu() {
 
     bookingSubmitInProgress.current = true;
     try {
-    const availability = await checkOpenDate(supabase, bookingDate.trim());
-    if (!availability.allowed) {
-      Alert.alert('Bokning', availability.message);
-      return;
+    if (kind !== 'event') {
+      const latestHours = await fetchOpeningHours();
+      const timeError = getOrderTimeError(bookingDate.trim(), bookingTime.trim());
+      const openingError = openingTimeError(latestHours.hours, bookingDate.trim(), bookingTime.trim());
+      if (timeError || openingError) { Alert.alert('Boka bord', timeError || openingError); return; }
+      const availability = await checkOpenDate(supabase, bookingDate.trim());
+      if (!availability.allowed) { Alert.alert('Bokning', availability.message); return; }
     }
     const { error } = await supabase
       .from('bookings')
@@ -1156,6 +1140,8 @@ async function loadPublishedMenu() {
 
   function selectAvailableDate(selected, setter) {
     const date = formatDate(selected);
+    const h = hoursForDate(openingHours.hours, date);
+    if (!h || h.closed) { setter(''); Alert.alert('Stängt', 'Restaurangen är stängd den dagen.'); return; }
     const closure = closureForDate(closedDays.closures, date);
     if (closure) {
       setter('');
@@ -1927,7 +1913,7 @@ function updateFullMenu(category, newItems) {
           </Text>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-  {['08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30','14:00'].map((time) => (
+  {openingSlots(openingHours.hours, orderDate).map((time) => (
    <TouchableOpacity
   key={time}
   disabled={Boolean(getOrderTimeError(orderDate, time))}
@@ -2214,7 +2200,7 @@ day === item && styles.dayActive,
         minimumDate={new Date()}
         onChange={(_, selected) => {
           setShowBookingDatePicker(false);
-          if (selected) selectAvailableDate(selected, setBookingDate);
+          if (selected) { setBookingDate(formatDate(selected)); setBookingTime(''); }
         }}
       />
     )}
@@ -2253,7 +2239,7 @@ day === item && styles.dayActive,
 
 <AppButton
   title="Skicka bokningsförfrågan"
-  disabled={!!closureForDate(closedDays.closures, bookingDate)}
+  disabled={section !== 'Catering & Festlokal' && !!closureForDate(closedDays.closures, bookingDate)}
   onPress={() => bookTable('event')}
 />
 </>
@@ -2311,13 +2297,14 @@ day === item && styles.dayActive,
             </Text>
 
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {['08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30','14:00'].map((time) => (
+              {openingSlots(openingHours.hours, bookingDate).map((time) => (
                 <TouchableOpacity
                   key={time}
                   style={[
                     styles.pickerButton,
                     bookingTime === time && styles.timeButtonActive,
                   ]}
+                  disabled={Boolean(getOrderTimeError(bookingDate, time))}
                   onPress={() => setBookingTime(time)}
                 >
                   <Text style={bookingTime === time ? styles.timeButtonTextActive : styles.pickerValue}>
@@ -2363,7 +2350,7 @@ day === item && styles.dayActive,
 
             <AppButton
               title="Skicka bokning"
-              disabled={!!closureForDate(closedDays.closures, bookingDate)}
+              disabled={section !== 'Catering & Festlokal' && !!closureForDate(closedDays.closures, bookingDate)}
               onPress={() => bookTable('table')}
             />
           </>

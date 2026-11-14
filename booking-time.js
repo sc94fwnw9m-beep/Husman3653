@@ -7,7 +7,7 @@ export function getBookingTimeError(date, time, kind = 'table', now = new Date()
     return 'Välj ett giltigt datum och en tid (HH:MM).';
   }
   if (kind !== 'event') {
-    const error = getOrderTimeError(date, time, now);
+    const error = getOrderTimeError(date, time, now, hours);
     if (error) return error;
     const openingError = openingTimeError(hours, date, time);
     if (openingError) return openingError;

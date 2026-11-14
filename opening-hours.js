@@ -46,7 +46,7 @@ export async function fetchOpeningHours(fetcher = fetch) {
     const response = await fetcher(HOURS_URL, { signal: controller.signal, cache: 'no-store' });
     if (!response.ok) throw new Error('Öppettiderna kunde inte hämtas.');
     const content = await response.json();
-    const hours = content.openingHours === undefined ? DEFAULT_HOURS : content.openingHours;
+    const hours = content.openingHours;
     if (!validHours(hours)) throw new Error('Öppettiderna kunde inte kontrolleras.');
     return { hours, notice: typeof content.hoursNotice === 'string' ? content.hoursNotice : '' };
   } finally { clearTimeout(timeout); }

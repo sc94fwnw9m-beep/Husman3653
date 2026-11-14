@@ -230,7 +230,56 @@ function AdminOrderSound({ soundRef, ringing }) {
   return null;
 }
 
+const HOURS_URL = 'https://www.husman-lunch.se/api/content';
+const HOURS_ADMIN_URL = 'https://www.husman-lunch.se/#admin';
+const HOURS_DAYS = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
+const DEFAULT_HOURS = HOURS_DAYS.map((_, i) => ({ closed: i > 4, open: '08:00', close: '14:00' }));
+function validHours(hours) {
+  return Array.isArray(hours) && hours.length === 7 && hours.every(h => h &&
+    typeof h.closed === 'boolean' && /^([01]\d|2[0-3]):[0-5]\d$/.test(h.open) &&
+    /^([01]\d|2[0-3]):[0-5]\d$/.test(h.close) && (h.closed || h.open < h.close));
+}
+function hoursSummary(hours) {
+  const groups = [];
+  hours.forEach((h, i) => {
+    const last = groups[groups.length - 1];
+    if (last && last.h.closed === h.closed && (h.closed || (last.h.open === h.open && last.h.close === h.close))) last.end = i;
+    else groups.push({ start: i, end: i, h });
+  });
+  return groups.map(g => `${HOURS_DAYS[g.start]}${g.end !== g.start ? '–' + HOURS_DAYS[g.end] : ''}: ${g.h.closed ? 'Stängt' : g.h.open + '–' + g.h.close}`).join(' • ');
+}
+function useOpeningHours() {
+  const [hours, setHours] = useState(DEFAULT_HOURS);
+  const [notice, setNotice] = useState('');
+  const [hoursError, setHoursError] = useState('');
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      try {
+        const response = await fetch(HOURS_URL, { signal: controller.signal, cache: 'no-store' });
+        if (!response.ok) throw new Error();
+        const content = await response.json();
+        const next = content.openingHours === undefined ? DEFAULT_HOURS : content.openingHours;
+        if (!validHours(next)) throw new Error();
+        if (active) {
+          setHours(next); setNotice(typeof content.hoursNotice === 'string' ? content.hoursNotice : ''); setHoursError('');
+        }
+      } catch {
+        if (active) setHoursError('Öppettiderna kunde inte uppdateras. Kontrollera hemsidan eller ring restaurangen.');
+      } finally { clearTimeout(timeout); }
+    };
+    refresh();
+    const foreground = AppState.addEventListener('change', state => { if (state === 'active') refresh(); });
+    const timer = setInterval(() => { if (AppState.currentState === 'active') refresh(); }, 60000);
+    return () => { active = false; foreground.remove(); clearInterval(timer); };
+  }, []);
+  return { hoursText: hoursSummary(hours), hoursNotice: notice, hoursError };
+}
+
 export default function App() {
+  const openingHours = useOpeningHours();
   const closedDays = useClosedDays(supabase);
   const bookingSubmitInProgress = useRef(false);
   const messageScrollRef = useRef(null);
@@ -1700,7 +1749,7 @@ function updateFullMenu(category, newItems) {
             styles.content
           }
         >
-          <Header onAdminOpen={() => setShowAdminLogin(true)} />
+          <Header onAdminOpen={() => setShowAdminLogin(true)} {...openingHours} />
           <ClosedDaysNotice {...closedDays} styles={styles} />
 
           <Text style={styles.heading}>
@@ -1957,7 +2006,7 @@ function updateFullMenu(category, newItems) {
           styles.content
         }
       >
-        <Header onAdminOpen={() => setShowAdminLogin(true)} />
+        <Header onAdminOpen={() => setShowAdminLogin(true)} {...openingHours} />
           <ClosedDaysNotice {...closedDays} styles={styles} />
         {admin && <AdminOrderSound soundRef={orderSound}
           ringing={orders.some(order => (order.status || 'Ny') === 'Ny'
@@ -2429,6 +2478,10 @@ day === item && styles.dayActive,
                   <ClosedDaysAdmin client={supabase} closures={closedDays.closures}
                     refresh={closedDays.refresh} styles={styles} Button={AppButton} />
                   <Text style={styles.adminTitle}>Inställningar</Text>
+                  <AppButton title="Ändra öppettider • app och hemsida" outline onPress={() => {
+                    Linking.openURL(HOURS_ADMIN_URL).catch(() => Alert.alert('Öppettider', 'Öppna www.husman-lunch.se och välj Logga in längst ned.'));
+                  }} />
+                  <Text style={styles.muted}>Logga in på hemsidan, ändra öppettiderna och spara. Samma tider visas här i appen.</Text>
                   <Text style={styles.muted}>Ändra meny, lägg till maträtter, ändra priser och hantera erbjudanden.</Text>
               <AppButton title="Testa orderljud" outline onPress={testOrderSound} />
               {!!ownerPushStatus && <Text style={styles.muted}>{ownerPushStatus}</Text>}
@@ -2901,7 +2954,7 @@ day === item && styles.dayActive,
   );
 }
 
-function Header({ onAdminOpen }) {
+function Header({ onAdminOpen, hoursText, hoursNotice, hoursError }) {
   return (
     <Pressable style={styles.header} onPress={onAdminOpen}>
       <View style={styles.brandRow}>
@@ -2923,8 +2976,10 @@ function Header({ onAdminOpen }) {
       </Text>
 
       <Text style={styles.open}>
-        Måndag–fredag 08:00–14:00
+        {hoursText}
       </Text>
+      {!!hoursNotice && <Text style={styles.open}>{hoursNotice}</Text>}
+      {!!hoursError && <Text style={styles.open}>{hoursError}</Text>}
     </Pressable>
   );
 }
@@ -3427,5 +3482,6 @@ const styles = StyleSheet.create({
 
 
               
+
 
 

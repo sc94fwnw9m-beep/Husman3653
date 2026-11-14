@@ -272,6 +272,7 @@ function orderItemDetails(item) {
 
 const HOURS_ADMIN_URL = 'https://www.husman-lunch.se/#admin';
 function useOpeningHours() {
+  const refreshRef = useRef(null);
   const [hours, setHours] = useState(DEFAULT_HOURS);
   const [notice, setNotice] = useState('');
   const [hoursError, setHoursError] = useState('');
@@ -287,12 +288,13 @@ function useOpeningHours() {
         if (active) setHoursError('Öppettiderna kunde inte uppdateras. Kontrollera hemsidan eller ring restaurangen.');
       }
     };
+    refreshRef.current = refresh;
     refresh();
     const foreground = AppState.addEventListener('change', state => { if (state === 'active') refresh(); });
     const timer = setInterval(() => { if (AppState.currentState === 'active') refresh(); }, 60000);
-    return () => { active = false; foreground.remove(); clearInterval(timer); };
+    return () => { active = false; refreshRef.current = null; foreground.remove(); clearInterval(timer); };
   }, []);
-  return { hours, hoursText: hoursSummary(hours), hoursNotice: notice, hoursError };
+  return { hours, hoursText: hoursSummary(hours), hoursNotice: notice, hoursError, refresh: () => refreshRef.current?.() };
 }
 
 export default function App() {
@@ -2588,7 +2590,7 @@ day === item && styles.dayActive,
                   <ClosedDaysAdmin client={supabase} closures={closedDays.closures}
                     refresh={closedDays.refresh} styles={styles} Button={AppButton} />
                   <Text style={styles.adminTitle}>Inställningar</Text>
-                  <OpeningHoursEditor client={supabase} current={openingHours.hours} notice={openingHours.hoursNotice} styles={styles} Button={AppButton} />
+                  <OpeningHoursEditor client={supabase} current={openingHours.hours} notice={openingHours.hoursNotice} onSaved={openingHours.refresh} styles={styles} Button={AppButton} />
                   <AppButton title="Ändra öppettider • app och hemsida" outline onPress={() => {
                     Linking.openURL(HOURS_ADMIN_URL).catch(() => Alert.alert('Öppettider', 'Öppna www.husman-lunch.se och välj Logga in längst ned.'));
                   }} />

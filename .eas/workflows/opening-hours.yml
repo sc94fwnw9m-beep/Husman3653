@@ -1,0 +1,10 @@
+name: Publish shared opening hours
+
+jobs:
+  update_hours:
+    type: update
+    environment: production
+    params:
+      platform: all
+      channel: production
+      message: 'Ändra öppettider själv för app och hemsida'

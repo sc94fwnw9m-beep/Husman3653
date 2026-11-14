@@ -1,3 +1,4 @@
+import OpeningHoursEditor from './OpeningHoursEditor';
 import HomeFoodCarousel from './src/HomeFoodCarousel';
 import headerLogoNavy from './src/headerLogoNavy';
 import LunchPrizeDraw from './src/LunchPrizeDraw';
@@ -6,6 +7,7 @@ import { sendOrderAcceptedPush } from './src/orderAcceptedPush';
 import { readHomeCatalog, saveHomeCatalog } from './src/homeCatalogCache';
 import { getBookingTimeError } from './booking-time';
 import { useAppUpdateNotice } from './AppUpdateNotice';
+import { DEFAULT_HOURS, hoursSummary, hoursForDate, openingSlots, openingTimeError, fetchOpeningHours } from './opening-hours';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getOrderTimeError } from './order-time';
    import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -268,8 +270,36 @@ function orderItemDetails(item) {
   return { title: '', rows: [{ name: item.name, qty: bundleQty }] };
 }
 
+const HOURS_ADMIN_URL = 'https://www.husman-lunch.se/#admin';
+function useOpeningHours() {
+  const refreshRef = useRef(null);
+  const [hours, setHours] = useState(DEFAULT_HOURS);
+  const [notice, setNotice] = useState('');
+  const [hoursError, setHoursError] = useState('');
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      try {
+        const { hours: next, notice } = await fetchOpeningHours();
+        if (active) {
+          setHours(next); setNotice(notice); setHoursError('');
+        }
+      } catch {
+        if (active) setHoursError('Öppettiderna kunde inte uppdateras. Kontrollera hemsidan eller ring restaurangen.');
+      }
+    };
+    refreshRef.current = refresh;
+    refresh();
+    const foreground = AppState.addEventListener('change', state => { if (state === 'active') refresh(); });
+    const timer = setInterval(() => { if (AppState.currentState === 'active') refresh(); }, 60000);
+    return () => { active = false; refreshRef.current = null; foreground.remove(); clearInterval(timer); };
+  }, []);
+  return { hours, hoursText: hoursSummary(hours), hoursNotice: notice, hoursError, refresh: () => refreshRef.current?.() };
+}
+
 export default function App() {
   const appUpdateNotice = useAppUpdateNotice(supabase);
+  const openingHours = useOpeningHours();
   const closedDays = useClosedDays(supabase);
   const bookingSubmitInProgress = useRef(false);
   const messageScrollRef = useRef(null);
@@ -1068,7 +1098,7 @@ async function loadPublishedMenu() {
       return;
     }
 
-    const timeError = getOrderTimeError(orderDate.trim(), orderTime.trim());
+    const timeError = getOrderTimeError(orderDate.trim(), orderTime.trim(), new Date(), openingHours.hours);
     if (timeError) { Alert.alert('Beställning', timeError); return; }
 
     const lunchError = lunchReservationError(cart, orderDate.trim());
@@ -1079,6 +1109,9 @@ async function loadPublishedMenu() {
 
     orderSubmitInProgress.current = true;
     try {
+    const latestHours = await fetchOpeningHours();
+    const openingError = openingTimeError(latestHours.hours, orderDate.trim(), orderTime.trim());
+    if (openingError) { Alert.alert('Beställning', openingError); return; }
     const frozenError = await checkFrozenCart(supabase, cart);
     if (frozenError) { Alert.alert('Frysta matlådor', frozenError); return; }
     const availability = await checkOpenDate(supabase, orderDate.trim());
@@ -1110,7 +1143,7 @@ async function loadPublishedMenu() {
 
       Alert.alert(
         'Beställning',
-        error.message?.includes('ORDER_CLOSED') ? 'Restaurangen är stängd lördag och söndag. Välj en vardag.' : error.message?.includes('ORDER_TIME_INVALID') ? 'Datumet eller tiden har passerat. Välj ett nytt datum och en kommande tid.' : error.message?.includes('FROZEN_STOCK') ? 'En eller flera matlådor har tagit slut eller räcker inte. Välj matlådorna igen.' : error.message?.includes('RESTAURANT_CLOSED')
+        error.message?.includes('ORDER_CLOSED') ? 'Välj en tid inom restaurangens aktuella öppettider.' : error.message?.includes('ORDER_TIME_INVALID') ? 'Datumet eller tiden har passerat. Välj ett nytt datum och en kommande tid.' : error.message?.includes('FROZEN_STOCK') ? 'En eller flera matlådor har tagit slut eller räcker inte. Välj matlådorna igen.' : error.message?.includes('RESTAURANT_CLOSED')
           ? 'Restaurangen är stängd det datumet. Välj ett annat datum.'
           : 'Beställningen kunde inte skickas just nu.'
       );
@@ -1158,7 +1191,8 @@ async function loadPublishedMenu() {
 
     bookingSubmitInProgress.current = true;
     try {
-    const timeError = getBookingTimeError(bookingDate.trim(), bookingTime.trim(), kind);
+    const latestHours = kind === 'event' ? null : await fetchOpeningHours();
+    const timeError = getBookingTimeError(bookingDate.trim(), bookingTime.trim(), kind, new Date(), latestHours?.hours);
     if (timeError) {
       Alert.alert('Bokning', timeError);
       return;
@@ -1214,6 +1248,8 @@ async function loadPublishedMenu() {
 
   function selectAvailableDate(selected, setter) {
     const date = formatDate(selected);
+    const h = hoursForDate(openingHours.hours, date);
+    if (!h || h.closed) { setter(''); Alert.alert('Stängt', 'Restaurangen är stängd den dagen.'); return; }
     const closure = closureForDate(closedDays.closures, date);
     if (closure) {
       setter('');
@@ -1816,7 +1852,7 @@ function updateFullMenu(category, newItems) {
             styles.content
           }
         >
-          <Header onAdminOpen={() => setShowAdminLogin(true)} onLunchDraw={openLunchDraw} />
+          <Header onAdminOpen={() => setShowAdminLogin(true)} onLunchDraw={openLunchDraw} {...openingHours} />
           <ClosedDaysNotice {...closedDays} styles={styles} />
 
           <Text style={styles.heading}>
@@ -1980,7 +2016,7 @@ function updateFullMenu(category, newItems) {
                 setShowOrderDatePicker(Platform.OS === 'ios');
                 if (selected) {
                   const selectedDate = formatDate(selected);
-                  const error = getOrderTimeError(selectedDate, '23:59');
+                  const error = getOrderTimeError(selectedDate, '23:59', new Date(), null);
                   if (error) { Alert.alert('Beställning', error); return; }
                   setOrderTime('');
                   selectAvailableDate(selected, setOrderDate);
@@ -1994,12 +2030,12 @@ function updateFullMenu(category, newItems) {
           </Text>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-  {['08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30','14:00'].map((time) => (
+  {openingSlots(openingHours.hours, orderDate).map((time) => (
    <TouchableOpacity
   key={time}
-  disabled={Boolean(getOrderTimeError(orderDate, time))}
+  disabled={Boolean(getOrderTimeError(orderDate, time, new Date(), openingHours.hours))}
   style={[
-    getOrderTimeError(orderDate, time) && { opacity: 0.35 },
+    getOrderTimeError(orderDate, time, new Date(), openingHours.hours) && { opacity: 0.35 },
     styles.pickerButton,
     orderTime === time && styles.timeButtonActive,
   ]}
@@ -2076,7 +2112,7 @@ function updateFullMenu(category, newItems) {
           styles.content
         }
       >
-        <Header onAdminOpen={() => setShowAdminLogin(true)} onLunchDraw={openLunchDraw} />
+        <Header onAdminOpen={() => setShowAdminLogin(true)} onLunchDraw={openLunchDraw} {...openingHours} />
         {!admin && <LunchPrizeDraw client={supabase} admin={false} styles={styles} Button={AppButton} expanded={lunchDrawOpen} onExpandedChange={setLunchDrawOpen} hideTrigger />}
           <ClosedDaysNotice {...closedDays} styles={styles} />
         {admin && <AdminOrderSound soundRef={orderSound}
@@ -2281,7 +2317,7 @@ day === item && styles.dayActive,
         minimumDate={new Date()}
         onChange={(_, selected) => {
           setShowBookingDatePicker(false);
-          if (selected) setBookingDate(formatDate(selected));
+          if (selected) { setBookingDate(formatDate(selected)); setBookingTime(''); }
         }}
       />
     )}
@@ -2332,7 +2368,7 @@ day === item && styles.dayActive,
               Boka bord
             </Text>
 
-            <Text style={styles.muted}>Boka bord måndag–fredag 08:00–14:00. Stängda dagar kan inte bokas.</Text>
+            <Text style={styles.muted}>{openingHours.hoursText}. Stängda dagar kan inte bokas.</Text>
             <Text style={styles.label}>Namn</Text>
             <TextInput
               style={styles.field}
@@ -2384,13 +2420,13 @@ day === item && styles.dayActive,
             </Text>
 
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {['08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30','13:00','13:30'].map((time) => (
+              {openingSlots(openingHours.hours, bookingDate).filter(time => time < hoursForDate(openingHours.hours, bookingDate).close).map((time) => (
                 <TouchableOpacity
                   key={time}
-                  disabled={Boolean(getBookingTimeError(bookingDate, time)) || !!closureForDate(closedDays.closures, bookingDate)}
+                  disabled={Boolean(getBookingTimeError(bookingDate, time, 'table', new Date(), openingHours.hours)) || !!closureForDate(closedDays.closures, bookingDate)}
                   style={[
                     styles.pickerButton,
-                    (getBookingTimeError(bookingDate, time) || closureForDate(closedDays.closures, bookingDate)) && { opacity: 0.4 },
+                    (getBookingTimeError(bookingDate, time, 'table', new Date(), openingHours.hours) || closureForDate(closedDays.closures, bookingDate)) && { opacity: 0.4 },
                     bookingTime === time && styles.timeButtonActive,
                   ]}
                   onPress={() => setBookingTime(time)}
@@ -2438,7 +2474,7 @@ day === item && styles.dayActive,
 
             <AppButton
               title="Skicka bokning"
-              disabled={!!closureForDate(closedDays.closures, bookingDate)}
+              disabled={section !== 'Catering & Festlokal' && !!closureForDate(closedDays.closures, bookingDate)}
               onPress={() => bookTable('table')}
             />
           </>
@@ -2554,6 +2590,11 @@ day === item && styles.dayActive,
                   <ClosedDaysAdmin client={supabase} closures={closedDays.closures}
                     refresh={closedDays.refresh} styles={styles} Button={AppButton} />
                   <Text style={styles.adminTitle}>Inställningar</Text>
+                  <OpeningHoursEditor client={supabase} current={openingHours.hours} notice={openingHours.hoursNotice} onSaved={openingHours.refresh} styles={styles} Button={AppButton} />
+                  <AppButton title="Ändra öppettider • app och hemsida" outline onPress={() => {
+                    Linking.openURL(HOURS_ADMIN_URL).catch(() => Alert.alert('Öppettider', 'Öppna www.husman-lunch.se och välj Logga in längst ned.'));
+                  }} />
+                  <Text style={styles.muted}>Logga in på hemsidan, ändra öppettiderna och spara. Samma tider visas här i appen.</Text>
                   <Text style={styles.muted}>Ändra meny, lägg till maträtter, ändra priser och hantera erbjudanden.</Text>
               <AppButton title="Testa orderljud" outline onPress={testOrderSound} />
               {!!ownerPushStatus && <Text style={styles.muted}>{ownerPushStatus}</Text>}
@@ -3023,7 +3064,7 @@ day === item && styles.dayActive,
   );
 }
 
-function Header({ onAdminOpen, onLunchDraw }) {
+function Header({ onAdminOpen, onLunchDraw, hoursText, hoursNotice, hoursError }) {
   return (
     <View style={styles.header}>
       <View style={styles.brandRow}>
@@ -3054,8 +3095,10 @@ function Header({ onAdminOpen, onLunchDraw }) {
       </Text>
 
       <Text style={styles.open}>
-        Måndag–fredag 08:00–14:00
+        {hoursText}
       </Text>
+      {!!hoursNotice && <Text style={styles.open}>{hoursNotice}</Text>}
+      {!!hoursError && <Text style={styles.open}>{hoursError}</Text>}
     </View>
   );
 }
@@ -3568,5 +3611,6 @@ const styles = StyleSheet.create({
 
 
               
+
 
 

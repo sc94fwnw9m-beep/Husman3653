@@ -1,4 +1,4 @@
-export const HOURS_URL = 'https://www.husman-lunch.se/api/content';
+export const HOURS_URL = 'https://www.husman-lunch.se/api/hours';
 export const HOURS_DAYS = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag', 'Söndag'];
 export const DEFAULT_HOURS = HOURS_DAYS.map((_, i) => ({ closed: i > 4, open: '08:00', close: '14:00' }));
 export function validHours(hours) {

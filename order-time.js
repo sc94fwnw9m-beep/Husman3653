@@ -1,5 +1,6 @@
+import { DEFAULT_HOURS, openingTimeError } from './opening-hours.js';
 // Compare restaurant wall time, independent of the phone's time zone.
-export function getOrderTimeError(date, time, now = new Date()) {
+export function getOrderTimeError(date, time, now = new Date(), hours = DEFAULT_HOURS) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
     return 'Välj ett giltigt datum och en tid.';
   }
@@ -7,8 +8,9 @@ export function getOrderTimeError(date, time, now = new Date()) {
   if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) {
     return 'Välj ett giltigt datum.';
   }
-  if ([0, 6].includes(parsed.getUTCDay())) {
-    return 'Restaurangen är stängd lördag och söndag. Välj en vardag.';
+  if (hours !== null) {
+    const error = openingTimeError(hours, date, time);
+    if (error) return error;
   }
   const parts = Object.fromEntries(new Intl.DateTimeFormat('sv-SE', {
     timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -20,3 +22,4 @@ export function getOrderTimeError(date, time, now = new Date()) {
   }
   return null;
 }
+
